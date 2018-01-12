@@ -1,0 +1,3 @@
+[submodule "HolodeckPythonBinding"]
+	path = HolodeckPythonBinding
+	url = https://github.com/byu-pccl/HolodeckPythonBinding
