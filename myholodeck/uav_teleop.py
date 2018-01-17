@@ -36,7 +36,8 @@ QUIT = K_ESCAPE
 
 # This is a basic example of how to use the UAV agent
 def uav_example():
-    initialize_pygame()
+    (screen, font) = initialize_pygame()
+    text = "nothing yet..."
     # pygame.init()
     # # pygame.event.set_grab(True)
 
@@ -152,12 +153,12 @@ def uav_example():
         #     alt_c -= max(altrate_min, 0)
 
         # text = "key pressed!"
-        screen.fill((0,0,0))
-        block = font.render(text, True, (255,255,255))
-        rect = block.get_rect()
-        rect.center = screen.get_rect().center
-        screen.blit(block, rect)
-        pygame.display.flip()
+        # screen.fill((0,0,0))
+        # block = font.render(text, True, (255,255,255))
+        # rect = block.get_rect()
+        # rect.center = screen.get_rect().center
+        # screen.blit(block, rect)
+        # pygame.display.flip()
 
 
         # Construct command
@@ -172,18 +173,27 @@ SURFACE_WIDTH = 640
 SURFACE_HEIGHT = 480
 
 KEY_BOX_WIDTH = 80
+KEY_LINE_WIDTH = 3
 KEY_VALUE_SIZE = 30
 KEY_TEXT_SIZE = 15
 KEY_PADDING = 10
 KEY_SIZE = (KEY_BOX_WIDTH, KEY_BOX_WIDTH)
+KEY_DEFAULT_COLOR = (255,255,255) # White
+KEY_PRESSED_COLOR = (0,0,255) # Red
 
-SIDE_PADDING = 50
-TOP_Y = 200
+SIDE_PADDING = 30
+CENTER_PADDING = 30
+TOP_Y = 120
 
-A_COORD = (SIDE_PADDING, TOP_Y)
+A_COORD = (SIDE_PADDING, TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
 W_COORD = (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING, TOP_Y)
 S_COORD = (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING, TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
 D_COORD = (SIDE_PADDING + 2*(KEY_BOX_WIDTH + KEY_PADDING), TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
+
+RIGHT_COORD = (SURFACE_WIDTH - KEY_BOX_WIDTH - SIDE_PADDING, TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
+UP_COORD = (SURFACE_WIDTH - KEY_BOX_WIDTH - (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING), TOP_Y)
+DOWN_COORD = (SURFACE_WIDTH - KEY_BOX_WIDTH - (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING), TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
+LEFT_COORD = (SURFACE_WIDTH - KEY_BOX_WIDTH - (SIDE_PADDING + 2*(KEY_BOX_WIDTH + KEY_PADDING)), TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
 
 
 def initialize_pygame():
@@ -196,10 +206,24 @@ def initialize_pygame():
     s_rect = Rect(S_COORD, KEY_SIZE)
     d_rect = Rect(D_COORD, KEY_SIZE)
 
-    pygame.rect(screen, 1, a_rect, width = 2)
+    up_rect = Rect(UP_COORD, KEY_SIZE)
+    down_rect = Rect(DOWN_COORD, KEY_SIZE)
+    left_rect = Rect(LEFT_COORD, KEY_SIZE)
+    right_rect = Rect(RIGHT_COORD, KEY_SIZE)
+
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, s_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, d_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, w_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, a_rect, KEY_LINE_WIDTH)
+
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, up_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, down_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, left_rect, KEY_LINE_WIDTH)
+    pygame.draw.rect(screen, KEY_DEFAULT_COLOR, right_rect, KEY_LINE_WIDTH)
+    pygame.display.flip()
 
     font = pygame.font.Font(None, 50)
-    text = "nothing yet..."
+    return (screen, font)
 
 
 
