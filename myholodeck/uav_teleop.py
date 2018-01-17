@@ -36,12 +36,7 @@ QUIT = K_ESCAPE
 
 # This is a basic example of how to use the UAV agent
 def uav_example():
-    pygame.init()
-    screen = pygame.display.set_mode( (640,480) )
-    pygame.display.set_caption('Python numbers')
-
-    font = pygame.font.Font(None, 50)
-    text = "nothing yet..."
+    initialize_pygame()
     # pygame.init()
     # # pygame.event.set_grab(True)
 
@@ -172,6 +167,39 @@ def uav_example():
         state, reward, terminal, info = env.step(command)
 
         # Could access sensor data here
+
+SURFACE_WIDTH = 640
+SURFACE_HEIGHT = 480
+
+KEY_BOX_WIDTH = 80
+KEY_VALUE_SIZE = 30
+KEY_TEXT_SIZE = 15
+KEY_PADDING = 10
+KEY_SIZE = (KEY_BOX_WIDTH, KEY_BOX_WIDTH)
+
+SIDE_PADDING = 50
+TOP_Y = 200
+
+A_COORD = (SIDE_PADDING, TOP_Y)
+W_COORD = (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING, TOP_Y)
+S_COORD = (SIDE_PADDING + KEY_BOX_WIDTH + KEY_PADDING, TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
+D_COORD = (SIDE_PADDING + 2*(KEY_BOX_WIDTH + KEY_PADDING), TOP_Y + KEY_BOX_WIDTH + KEY_PADDING)
+
+
+def initialize_pygame():
+    pygame.init()
+    screen = pygame.display.set_mode( (SURFACE_WIDTH,SURFACE_HEIGHT) )
+    pygame.display.set_caption('Holodeck UAV Teleop')
+
+    a_rect = Rect(A_COORD, KEY_SIZE)
+    w_rect = Rect(W_COORD, KEY_SIZE)
+    s_rect = Rect(S_COORD, KEY_SIZE)
+    d_rect = Rect(D_COORD, KEY_SIZE)
+
+    pygame.rect(screen, 1, a_rect, width = 2)
+
+    font = pygame.font.Font(None, 50)
+    text = "nothing yet..."
 
 
 
