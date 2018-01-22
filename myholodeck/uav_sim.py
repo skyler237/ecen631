@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import scipy.io as sio # For exporting to matlab
 import pygame
 from pygame.locals import *
 
@@ -44,7 +45,6 @@ class UAVSim():
         self.speed_rate = 0.1
         self.speed_val = 0
 
-
         # Teleop
         self.using_teleop = False
         self.teleop_text = "Click here to use teleop"
@@ -54,6 +54,13 @@ class UAVSim():
         self.sim_reward = 0
         self.sim_terminal = 0
         self.sim_info = 0
+        self.sim_step = 0
+
+        # Data saving options
+        self.saving_state = True
+        self.sim_state_list = []
+        self.sim_step_list = []
+        self.state_file = 'states.mat'
 
         # Initialize world
         self.env = Holodeck.make(world)
@@ -87,9 +94,9 @@ class UAVSim():
         self.yawrate_c = 0
 
         # Update control values
-        if keys[K_ESCAPE]:
+        if keys[QUIT]:
             # return False # Quit the program
-            quit()
+            self.exit_sim()
         if keys[ROLL_RIGHT]:
             self.roll_c = -(self.roll_min + (self.roll_max - self.roll_min)*self.speed_val)
             self.teleop_text = "ROLL_RIGHT"
@@ -131,6 +138,13 @@ class UAVSim():
     def get_state(self):
         return self.sim_state
 
+    def set_state_file(self, state_file):
+        self.saving_state = True
+        self.state_file = state_file
+
+    def write_state(self):
+        sio.savemat(self.state_file, {'states':np.ravel(self.sim_state_list), 't':np.ravel(self.sim_step_list)})
+
     def get_camera(self):
         return np.asarray(self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA])
 
@@ -152,4 +166,14 @@ class UAVSim():
             self.update_teleop_display()
 
         # Step holodeck simulator
+        self.sim_step += 1
         self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
+        if self.saving_state:
+            self.sim_state_list.append(self.sim_state)
+            self.sim_step_list.append(self.sim_step)
+            self.write_state() # REVIEW: Is this too frequent?
+
+    def exit_sim(self):
+        if self.saving_state:
+            self.write_state()
+        quit()
