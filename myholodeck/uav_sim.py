@@ -21,6 +21,7 @@ ALT_DOWN    = K_DOWN
 SPEED_UP    = K_e
 SPEED_DOWN  = K_q
 QUIT = K_ESCAPE
+PAUSE = K_SPACE
 
 class UAVSim():
     def __init__(self, world):
@@ -68,6 +69,7 @@ class UAVSim():
 
         # Initialize world
         self.env = Holodeck.make(world)
+        self.paused = False
 
     ######## Plotting Functions ########
     def init_plots(self):
@@ -106,6 +108,12 @@ class UAVSim():
         if keys[QUIT]:
             # return False # Quit the program
             self.exit_sim()
+        if keys[PAUSE]:
+            self.paused = self.paused ^ True
+            self.teleop_text = "Simulation paused"
+            # TODO: add debouncing timer
+        if self.paused:
+            return
         if keys[ROLL_RIGHT]:
             self.roll_c = -(self.roll_min + (self.roll_max - self.roll_min)*self.speed_val)
             self.teleop_text = "ROLL_RIGHT"
@@ -175,16 +183,17 @@ class UAVSim():
             self.update_teleop_display()
 
         # Step holodeck simulator
-        self.sim_step += 1
-        self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
-        if self.saving_state:
-            self.sim_state_list.append(self.sim_state)
-            self.sim_step_list.append(self.sim_step)
-            self.write_state() # REVIEW: Is this too frequent?
-        if self.plotting_states:
-            self.plotter.update_states(self.sim_state, self.sim_step*self.dt)
-            self.plotter.update_commands(self.command)
-            self.plotter.update_plots()
+        if not self.paused:
+            self.sim_step += 1
+            self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
+            if self.saving_state:
+                self.sim_state_list.append(self.sim_state)
+                self.sim_step_list.append(self.sim_step)
+                self.write_state() # REVIEW: Is this too frequent?
+            if self.plotting_states:
+                self.plotter.update_states(self.sim_state, self.sim_step*self.dt)
+                self.plotter.update_commands(self.command)
+                self.plotter.update_plots()
 
     def exit_sim(self):
         if self.saving_state:
