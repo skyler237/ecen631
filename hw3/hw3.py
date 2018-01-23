@@ -15,8 +15,9 @@ edge_min = 150
 edge_max = 200
 
 def holodeck_sim():
-    uav_sim = UAVSim(forest_world)
+    uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
+    uav_sim.init_plots()
 
     while True:
         uav_sim.step_sim()

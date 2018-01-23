@@ -7,6 +7,7 @@ from pygame.locals import *
 from Holodeck import Holodeck, Agents
 from Holodeck.Environments import HolodeckEnvironment
 from Holodeck.Sensors import Sensors
+from uav_state_plotter import Plotter
 
 # Command key mappings
 ROLL_RIGHT  = K_d
@@ -55,15 +56,23 @@ class UAVSim():
         self.sim_terminal = 0
         self.sim_info = 0
         self.sim_step = 0
+        self.dt = 0.01
 
         # Data saving options
-        self.saving_state = True
+        self.saving_state = False
         self.sim_state_list = []
         self.sim_step_list = []
         self.state_file = 'states.mat'
 
+        self.plotting_states = False
+
         # Initialize world
         self.env = Holodeck.make(world)
+
+    ######## Plotting Functions ########
+    def init_plots(self):
+        self.plotting_states = True
+        self.plotter = Plotter()
 
     ######## Teleop Functions ########
     def init_teleop(self):
@@ -172,6 +181,10 @@ class UAVSim():
             self.sim_state_list.append(self.sim_state)
             self.sim_step_list.append(self.sim_step)
             self.write_state() # REVIEW: Is this too frequent?
+        if self.plotting_states:
+            self.plotter.update_states(self.sim_state, self.sim_step*self.dt)
+            self.plotter.update_commands(self.command)
+            self.plotter.update_plots()
 
     def exit_sim(self):
         if self.saving_state:
