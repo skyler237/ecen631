@@ -13,6 +13,7 @@ import math
 import time
 
 from uav_sim import UAVSim
+from multi_image import MultiImage
 
 urban_world = 'UrbanCity'
 forest_world = 'ConiferForest'
@@ -23,7 +24,9 @@ edge_max = 200
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
-    uav_sim.init_plots()
+    uav_sim.init_plots(plotting_freq=5)
+
+    multi_img = MultiImage(2,2)
 
     while True:
         uav_sim.step_sim()
@@ -36,9 +39,14 @@ def holodeck_sim():
         # top = np.hstack((cam,gray))
         # bot = np.hstack((edge,hsv))
         # img = np.vstack((top,bot))
-        cv2.imshow('Gray', gray)
-        cv2.imshow('Edge', edge)
-        cv2.imshow('HSV', hsv)
+        # cv2.imshow('Gray', gray)
+        # cv2.imshow('Edge', edge)
+        # cv2.imshow('HSV', hsv)
+        multi_img.add_image(cam, 1,1)
+        multi_img.add_image(gray, 1,2)
+        multi_img.add_image(edge, 2,1)
+        multi_img.add_image(hsv, 2,2)
+        cv2.imshow('Holodeck', multi_img.get_display())
         cv2.waitKey(1)
 
     cv2.destroyAllWindows()
