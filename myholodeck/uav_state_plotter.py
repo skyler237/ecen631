@@ -14,13 +14,15 @@ class Plotter:
     """
     Class for plotting methods.
     """
-    def __init__(self):
+    def __init__(self, plotting_frequency):
         # get parameters from server
         self.t_win = 5.0
         self.time0 = 0
         self.init_time = True
         self.curve_length = 300
         self.time_window = 15.0
+        self.plotting_frequency = plotting_frequency
+        self.plot_cnt = 0
 
         # initialize Qt gui application and window
         self.app = pg.QtGui.QApplication([])
@@ -139,7 +141,8 @@ class Plotter:
 
     # Update the plots with the current data
     def update_plots(self):
-        if self.prev_time != self.time:
+        self.plot_cnt += 1
+        if (self.prev_time != self.time) and (self.plot_cnt % self.plotting_frequency == 0):
             # pack stored data into lists
             self.states.append([self.time, self.x, self.y, self.z, self.xdot, self.ydot, self.zdot, self.phi, self.theta, self.psi, self.p, self.q, self.r, self.ax, self.ay, self.az])
             self.commands.append([self.time, self.z_c, self.phi_c, self.theta_c, self.r_c])

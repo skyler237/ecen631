@@ -72,9 +72,9 @@ class UAVSim():
         self.paused = False
 
     ######## Plotting Functions ########
-    def init_plots(self):
+    def init_plots(self, plotting_freq):
         self.plotting_states = True
-        self.plotter = Plotter()
+        self.plotter = Plotter(plottint_freq)
 
     ######## Teleop Functions ########
     def init_teleop(self):
