@@ -74,14 +74,14 @@ class UAVSim():
     ######## Plotting Functions ########
     def init_plots(self, plotting_freq):
         self.plotting_states = True
-        self.plotter = Plotter(plottint_freq)
+        self.plotter = Plotter(plotting_freq)
 
     ######## Teleop Functions ########
     def init_teleop(self):
         self.using_teleop = True
         pygame.init()
         SURFACE_WIDTH = 640
-        SURFACE_HEIGHT = 480
+        SURFACE_HEIGHT = 200
         self.teleop_screen = pygame.display.set_mode( (SURFACE_WIDTH,SURFACE_HEIGHT) )
         pygame.display.set_caption('Holodeck UAV Teleop')
 
