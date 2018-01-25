@@ -47,7 +47,6 @@ def holodeck_sim():
         multi_img.add_image(edge, 1,0)
         multi_img.add_image(hsv, 1,1)
         display = multi_img.get_display()
-        print(np.size(display))
         cv2.imshow('Holodeck', display)
         cv2.waitKey(1)
 
