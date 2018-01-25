@@ -20,8 +20,8 @@ ALT_UP      = K_UP
 ALT_DOWN    = K_DOWN
 SPEED_UP    = K_e
 SPEED_DOWN  = K_q
-QUIT = K_ESCAPE
-PAUSE = K_SPACE
+QUIT        = K_ESCAPE
+PAUSE       = K_SPACE
 
 class UAVSim():
     def __init__(self, world):
@@ -163,7 +163,7 @@ class UAVSim():
         sio.savemat(self.state_file, {'states':np.ravel(self.sim_state_list), 't':np.ravel(self.sim_step_list)})
 
     def get_camera(self):
-        return np.asarray(self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA])
+        return self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA]
 
     def get_position(self):
         return self.sim_state[Sensors.LOCATION_SENSOR]
