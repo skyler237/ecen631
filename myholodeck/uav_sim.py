@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/home/skyler/school/ecen631/state_plotter')
+
 import numpy as np
 import math
 import scipy.io as sio # For exporting to matlab
