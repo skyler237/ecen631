@@ -1,3 +1,9 @@
 [submodule "HolodeckPythonBinding"]
 	path = HolodeckPythonBinding
 	url = https://github.com/byu-pccl/HolodeckPythonBinding
+[submodule "camera_calibration"]
+	path = camera_calibration
+	url = https://github.com/pmarke/camera_calibration.git
+[submodule "state_plotter"]
+	path = state_plotter
+	url = git@magiccvs.byu.edu:skyler237/state_plotter.git
