@@ -83,6 +83,7 @@ class UAVSim():
         # Teleop
         self.using_teleop = False
         self.teleop_text = "Click here to use teleop"
+        self.pause_pressed = False
 
         # Simulation return variables
         self.sim_state = 0
@@ -90,7 +91,7 @@ class UAVSim():
         self.sim_terminal = 0
         self.sim_info = 0
         self.sim_step = 0
-        self.dt = 1.0/30.0
+        self.dt = 1.0/30 # 30 Hz
 
         # Sensor data
         self.camera_sensor = np.zeros((512,512,4))
@@ -172,9 +173,17 @@ class UAVSim():
             # return False # Quit the program
             self.exit_sim()
         if keys[PAUSE]:
-            self.paused = self.paused ^ True
-            self.teleop_text = "Simulation paused"
+            # Only trigger on edge
+            if not self.pause_pressed:
+                self.pause_pressed = True
+                self.paused = self.paused ^ True
+                if self.paused == True:
+                    self.teleop_text = "Simulation paused"
+                else:
+                    self.teleop_text = "Simulation resumed"
             # TODO: add debouncing timer
+        elif self.pause_pressed: # Reset edge variable
+            self.pause_pressed = False
         if self.paused:
             return
         # Lateral motion
@@ -214,19 +223,19 @@ class UAVSim():
         # Altitude
         if keys[ALT_UP]:
             self.alt_c += (self.altrate_min + (self.altrate_max - self.altrate_min)*self.speed_val)
-            self.teleop_text = "Altitude raised to {0}".format(self.alt_c)
+            self.teleop_text = "Altitude raised to {0:.1f}".format(self.alt_c)
         if keys[ALT_DOWN]:
             self.alt_c -= max(((self.altrate_min + (self.altrate_max - self.altrate_min)*self.speed_val), 0))
-            self.teleop_text = "Altitude lowered to {0}".format(self.alt_c)
+            self.teleop_text = "Altitude lowered to {0:.1f}".format(self.alt_c)
         # Speed/scaling
         if keys[SPEED_UP]:
             self.speed_val += self.speed_rate
             self.speed_val = min(self.speed_val, self.speed_max)
-            self.teleop_text = "Speed raised to {0}".format(self.speed_val)
+            self.teleop_text = "Speed raised to {0:.1f}".format(self.speed_val)
         if keys[SPEED_DOWN]:
             self.speed_val -= self.speed_rate
             self.speed_val = max(self.speed_val, self.speed_min)
-            self.teleop_text = "Speed lowered to {0}".format(self.speed_val)
+            self.teleop_text = "Speed lowered to {0:.1f}".format(self.speed_val)
 
         if self.command_velocity:
             # Update roll and pitch commands based on velocity commands
@@ -321,4 +330,4 @@ class UAVSim():
     def exit_sim(self):
         if self.saving_state:
             self.write_state()
-        quit()
+        sys.exit()
