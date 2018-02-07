@@ -1,13 +1,18 @@
+import sys
+sys.path.insert(0, '/home/skyler/school/ecen631/state_plotter')
+
 import numpy as np
 import math
 import scipy.io as sio # For exporting to matlab
 import pygame
+import transforms3d
 from pygame.locals import *
 
 from Holodeck import Holodeck, Agents
 from Holodeck.Environments import HolodeckEnvironment
 from Holodeck.Sensors import Sensors
-from uav_state_plotter import Plotter
+# from uav_state_plotter import Plotter
+from state_plotter import Plotter
 
 # Command key mappings
 ROLL_RIGHT  = K_d
@@ -75,6 +80,23 @@ class UAVSim():
     def init_plots(self, plotting_freq):
         self.plotting_states = True
         self.plotter = Plotter(plotting_freq)
+        # Define plot names
+        plots = ['x',               'y',                    ['z', 'z_c'],
+                 'xdot',            'ydot',                 'zdot',
+                 ['phi', 'phi_c'],  ['theta', 'theta_c'],   'psi',
+                 'p',               'q',                    ['r', 'r_c'],
+                 'ax',              'ay',                   'az'
+                 ]
+        # Add plots to the window
+        for p in plots:
+            self.plotter.add_plot(p)
+
+        # Define state vectors for simpler input
+        self.plotter.define_state_vector("position", ['x', 'y', 'z'])
+        self.plotter.define_state_vector("velocity", ['xdot', 'ydot', 'zdot'])
+        self.plotter.define_state_vector("orientation", ['phi', 'theta', 'psi'])
+        self.plotter.define_state_vector("imu", ['p', 'q', 'r', 'ax', 'ay', 'az'])
+        self.plotter.define_state_vector("command", ['phi_c', 'theta_c', 'r_c', 'z_c'])
 
     ######## Teleop Functions ########
     def init_teleop(self):
@@ -177,6 +199,11 @@ class UAVSim():
     def get_orientation(self):
         return self.sim_state[Sensors.ORIENTATION_SENSOR]
 
+    def get_euler(self):
+        R = self.get_orientation()
+        euler = transforms3d.euler.mat2euler(R, 'rxyz')
+        return euler
+
     def step_sim(self):
         if self.using_teleop:
             self.get_teleop_command()
@@ -191,8 +218,12 @@ class UAVSim():
                 self.sim_step_list.append(self.sim_step)
                 self.write_state() # REVIEW: Is this too frequent?
             if self.plotting_states:
-                self.plotter.update_states(self.sim_state, self.sim_step*self.dt)
-                self.plotter.update_commands(self.command)
+                t = self.sim_step*self.dt
+                self.plotter.add_vector_measurement("position", self.get_position(), t)
+                self.plotter.add_vector_measurement("velocity", self.get_velocity(), t)
+                self.plotter.add_vector_measurement("orientation", self.get_euler(), t)
+                self.plotter.add_vector_measurement("imu", self.get_imu(), t)
+                self.plotter.add_vector_measurement("command", self.command, t)
                 self.plotter.update_plots()
 
     def exit_sim(self):
