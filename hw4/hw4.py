@@ -15,7 +15,8 @@ import time
 from uav_sim import UAVSim
 
 urban_world = 'UrbanCity'
-forest_world = 'ConiferForest'
+forest_world = 'EuropeanForest'
+redwood_world = 'RedwoodForest'
 
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
