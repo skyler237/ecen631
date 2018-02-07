@@ -45,6 +45,7 @@ class UAVSim():
         self.pitch_c = 0.0
         self.yawrate_c = 0.0
         self.alt_c = 0.0
+        self.yaw_c = 0.0
         self.command = np.array([self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c])
 
         # Rate parameters
@@ -66,19 +67,23 @@ class UAVSim():
         self.vx_c   = 0.0
         self.vy_c   = 0.0
         self.vy_min = 0.5
-        self.vy_max = 5.0
+        self.vy_max = 4.0
         self.vx_min = 0.5
-        self.vx_max = 5.0
+        self.vx_max = 4.0
 
         # PID controllers
         vx_kp = -0.3
-        vx_kd = -0.01
+        vx_kd = -0.05
         vx_ki = -0.01
-        vy_kp = 0.3
-        vy_kd = 0.01
-        vy_ki = 0.01
         self.vx_pid = PID(vx_kp, vx_kd, vx_ki, u_min=-self.pitch_max, u_max=self.pitch_max)
+        vy_kp = 0.3
+        vy_kd = 0.05
+        vy_ki = 0.01
         self.vy_pid = PID(vy_kp, vy_kd, vy_ki, u_min=-self.roll_max, u_max=self.roll_max)
+        yaw_kp = 1.0
+        yaw_kd = 0.00
+        yaw_ki = 0.00
+        self.yaw_pid = PID(yaw_kp, yaw_kd, yaw_ki, u_min=-self.yawrate_max, u_max=self.yawrate_max)
 
         # Teleop
         self.using_teleop = False
@@ -109,6 +114,7 @@ class UAVSim():
         self.plotting_states = False
 
         # Initialize world
+        print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
         self.paused = False
 
@@ -119,7 +125,7 @@ class UAVSim():
         # Define plot names
         plots = ['x',                   'y',                    ['z', 'z_c'],
                  ['xdot', 'xdot_c'],    ['ydot', 'ydot_c'],     'zdot',
-                 ['phi', 'phi_c'],      ['theta', 'theta_c'],   'psi',
+                 ['phi', 'phi_c'],      ['theta', 'theta_c'],   ['psi', 'psi_c'],
                  'p',                   'q',                    ['r', 'r_c'],
                  'ax',                  'ay',                   'az'
                  ]
@@ -133,7 +139,7 @@ class UAVSim():
         self.plotter.define_state_vector("orientation", ['phi', 'theta', 'psi'])
         self.plotter.define_state_vector("imu", ['p', 'q', 'r', 'ax', 'ay', 'az'])
         self.plotter.define_state_vector("command", ['phi_c', 'theta_c', 'r_c', 'z_c'])
-        self.plotter.define_state_vector("vel_command", ['xdot_c', 'ydot_c'])
+        self.plotter.define_state_vector("vel_command", ['xdot_c', 'ydot_c', 'psi_c'])
 
 
     ######## Teleop Functions ########
@@ -163,10 +169,10 @@ class UAVSim():
         if not self.command_velocity:
             self.roll_c = 0.0
             self.pitch_c = 0.0
+            self.yawrate_c = 0
         else:
             self.vx_c = 0.0
             self.vy_c = 0.0
-        self.yawrate_c = 0
 
         # Update control values
         if keys[QUIT]:
@@ -200,6 +206,13 @@ class UAVSim():
             if keys[VEL_BACKWARD]:
                 self.vx_c = -(self.vx_min + (self.vx_max - self.vx_min)*self.speed_val)
                 self.teleop_text = "VEL_BACKWARD"
+            # z-rotation
+            if keys[YAW_LEFT]:
+                self.yaw_c += (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                self.teleop_text = "YAW_LEFT"
+            if keys[YAW_RIGHT]:
+                self.yaw_c -= (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                self.teleop_text = "YAW_RIGHT"
         else:
             if keys[ROLL_RIGHT]:
                 self.roll_c = (self.roll_min + (self.roll_max - self.roll_min)*self.speed_val)
@@ -213,13 +226,13 @@ class UAVSim():
             if keys[PITCH_DOWN]:
                 self.pitch_c = -(self.pitch_min + (self.pitch_max - self.pitch_min)*self.speed_val)
                 self.teleop_text = "PITCH_DOWN"
-        # z-rotation
-        if keys[YAW_LEFT]:
-            self.yawrate_c = (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)
-            self.teleop_text = "YAW_LEFT"
-        if keys[YAW_RIGHT]:
-            self.yawrate_c = -(self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)
-            self.teleop_text = "YAW_RIGHT"
+            # z-rotation
+            if keys[YAW_LEFT]:
+                self.yawrate_c = (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)
+                self.teleop_text = "YAW_LEFT"
+            if keys[YAW_RIGHT]:
+                self.yawrate_c = -(self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)
+                self.teleop_text = "YAW_RIGHT"
         # Altitude
         if keys[ALT_UP]:
             self.alt_c += (self.altrate_min + (self.altrate_max - self.altrate_min)*self.speed_val)
@@ -239,22 +252,24 @@ class UAVSim():
 
         if self.command_velocity:
             # Update roll and pitch commands based on velocity commands
-            self.velocity_control(self.vx_c, self.vy_c)
+            self.velocity_control(self.vx_c, self.vy_c, self.yaw_c)
 
-        self.command = np.array([-1.0*self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c]) # Roll command is backward in sim
+        self.command = np.array([-self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c]) # Roll command is backward in sim
 
         return True
 
     ######## Control ########
-    def velocity_control(self, vx_c, vy_c):
+    def velocity_control(self, vx_c, vy_c, yaw_c):
         # Get current state
         vel = self.get_body_velocity()
         vx = vel[0]
         vy = vel[1]
+        yaw = self.get_euler()[2]
 
         # Compute PID control
         self.pitch_c = self.vx_pid.compute_control(vx, vx_c, self.dt)
         self.roll_c = self.vy_pid.compute_control(vy, vy_c, self.dt)
+        self.yawrate_c = self.yaw_pid.compute_control(yaw, yaw_c, self.dt)
 
 
 
@@ -262,8 +277,8 @@ class UAVSim():
     ######## Data access ########
     def extract_sensor_data(self):
         self.camera_sensor      = self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA]
-        self.position_sensor    = self.sim_state[Sensors.LOCATION_SENSOR]/100.0 # Currently in cm - convert to m
-        self.velocity_sensor    = self.sim_state[Sensors.VELOCITY_SENSOR]/100.0 # Currently in cm - convert to m
+        self.position_sensor    = self.sim_state[Sensors.LOCATION_SENSOR]#/100.0 # Currently in cm - convert to m
+        self.velocity_sensor    = self.sim_state[Sensors.VELOCITY_SENSOR]#/100.0 # Currently in cm - convert to m
         self.imu_sensor         = self.sim_state[Sensors.IMU_SENSOR]
         self.orientation_sensor = self.sim_state[Sensors.ORIENTATION_SENSOR]
 
@@ -324,7 +339,7 @@ class UAVSim():
                 self.plotter.add_vector_measurement("orientation", self.get_euler(), t)
                 self.plotter.add_vector_measurement("imu", self.get_imu(), t)
                 self.plotter.add_vector_measurement("command", self.command, t)
-                self.plotter.add_vector_measurement("vel_command", [self.vx_c, self.vy_c], t)
+                self.plotter.add_vector_measurement("vel_command", [self.vx_c, self.vy_c, self.yaw_c], t)
                 self.plotter.update_plots()
 
     def exit_sim(self):
