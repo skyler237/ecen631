@@ -21,7 +21,7 @@ redwood_world = 'RedwoodForest'
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
-    uav_sim.init_plots(plotting_freq=5)
+    uav_sim.init_plots(plotting_freq=1)
     uav_sim.command_velocity = True
 
     while True:

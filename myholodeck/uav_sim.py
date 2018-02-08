@@ -80,9 +80,9 @@ class UAVSim():
         vy_kd = 0.05
         vy_ki = 0.01
         self.vy_pid = PID(vy_kp, vy_kd, vy_ki, u_min=-self.roll_max, u_max=self.roll_max)
-        yaw_kp = 1.0
-        yaw_kd = 0.00
-        yaw_ki = 0.00
+        yaw_kp = 5.0
+        yaw_kd = 2.5
+        yaw_ki = 0.05
         self.yaw_pid = PID(yaw_kp, yaw_kd, yaw_ki, u_min=-self.yawrate_max, u_max=self.yawrate_max)
 
         # Teleop
@@ -116,7 +116,7 @@ class UAVSim():
         # Initialize world
         print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
-        self.paused = False
+        self.paused = True
 
     ######## Plotting Functions ########
     def init_plots(self, plotting_freq):
@@ -137,7 +137,7 @@ class UAVSim():
         self.plotter.define_state_vector("position", ['x', 'y', 'z'])
         self.plotter.define_state_vector("velocity", ['xdot', 'ydot', 'zdot'])
         self.plotter.define_state_vector("orientation", ['phi', 'theta', 'psi'])
-        self.plotter.define_state_vector("imu", ['p', 'q', 'r', 'ax', 'ay', 'az'])
+        self.plotter.define_state_vector("imu", ['ax', 'ay', 'az', 'p', 'q', 'r'])
         self.plotter.define_state_vector("command", ['phi_c', 'theta_c', 'r_c', 'z_c'])
         self.plotter.define_state_vector("vel_command", ['xdot_c', 'ydot_c', 'psi_c'])
 
@@ -277,9 +277,9 @@ class UAVSim():
     ######## Data access ########
     def extract_sensor_data(self):
         self.camera_sensor      = self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA]
-        self.position_sensor    = self.sim_state[Sensors.LOCATION_SENSOR]#/100.0 # Currently in cm - convert to m
-        self.velocity_sensor    = self.sim_state[Sensors.VELOCITY_SENSOR]#/100.0 # Currently in cm - convert to m
-        self.imu_sensor         = self.sim_state[Sensors.IMU_SENSOR]
+        self.position_sensor    = np.ravel(self.sim_state[Sensors.LOCATION_SENSOR])
+        self.velocity_sensor    = np.ravel(self.sim_state[Sensors.VELOCITY_SENSOR])#/100.0 # Currently in cm - convert to m
+        self.imu_sensor         = np.ravel(self.sim_state[Sensors.IMU_SENSOR])
         self.orientation_sensor = self.sim_state[Sensors.ORIENTATION_SENSOR]
 
     def get_state(self):
@@ -308,6 +308,7 @@ class UAVSim():
         return body_vel
 
     def get_imu(self):
+        self.imu_sensor[2] *= -1.0 # Yaw output seems to be backwards
         return self.imu_sensor
 
     def get_orientation(self):
