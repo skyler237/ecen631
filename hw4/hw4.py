@@ -40,7 +40,10 @@ def holodeck_sim():
         # gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
         # Implement optical flow
-        op_flow.compute_optical_flow(cam)
+        width = 512
+        height = 512
+        region = [0,100, 512, 312]
+        op_flow.compute_optical_flow(cam, color=[0,0,255], region=region)
         op_flow.display_image()
 
         # cv2.imshow('Holodeck', cam)
