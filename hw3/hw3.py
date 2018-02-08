@@ -16,7 +16,8 @@ from uav_sim import UAVSim
 from multi_image import MultiImage
 
 urban_world = 'UrbanCity'
-forest_world = 'ConiferForest'
+forest_world = 'EuropeanForest'
+redwood_world = 'RedwoodForest'
 
 edge_min = 150
 edge_max = 200
@@ -24,7 +25,7 @@ edge_max = 200
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
-    uav_sim.init_plots(plotting_freq=5)
+    uav_sim.init_plots(plotting_freq=1)
 
     multi_img = MultiImage(2,2)
 
