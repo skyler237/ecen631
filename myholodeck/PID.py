@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 class PID:
-    def __init__(self, kp, kd, ki, u_min=-math.inf, u_max=math.inf):
+    def __init__(self, kp, kd, ki, u_min=-math.inf, u_max=math.inf, angle_wrap=False):
         self.kp = kp
         self.kd = kd
         self.ki = ki
@@ -13,9 +13,18 @@ class PID:
         self.integrator = 0.0
         self.error_prev = 0.0
 
+        self.angle_wrap = angle_wrap
+
     def compute_control(self, x, x_c, dt):
         # Get the error
         error = x_c - x
+
+        # Handle angle wrap, if desired
+        if self.angle_wrap:
+            if error > math.pi:
+                error -= 2*math.pi
+            elif error < -math.pi:
+                error += 2*math.pi
 
         # Compute each component
         P = self.kp*error

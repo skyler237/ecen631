@@ -54,7 +54,7 @@ class UAVSim():
         self.pitch_min = math.radians(10)
         self.pitch_max = math.radians(45)
         self.yawrate_min = math.radians(30)
-        self.yawrate_max = math.radians(180)
+        self.yawrate_max = math.radians(360)
         self.altrate_min = 0.1
         self.altrate_max = 0.5
         self.speed_min = 0.0
@@ -82,8 +82,8 @@ class UAVSim():
         self.vy_pid = PID(vy_kp, vy_kd, vy_ki, u_min=-self.roll_max, u_max=self.roll_max)
         yaw_kp = 5.0
         yaw_kd = 2.5
-        yaw_ki = 0.05
-        self.yaw_pid = PID(yaw_kp, yaw_kd, yaw_ki, u_min=-self.yawrate_max, u_max=self.yawrate_max)
+        yaw_ki = 0.00
+        self.yaw_pid = PID(yaw_kp, yaw_kd, yaw_ki, u_min=-self.yawrate_max, u_max=self.yawrate_max, angle_wrap=True)
 
         # Teleop
         self.using_teleop = False
@@ -116,7 +116,7 @@ class UAVSim():
         # Initialize world
         print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
-        self.paused = True
+        self.paused = False
 
     ######## Plotting Functions ########
     def init_plots(self, plotting_freq):
@@ -209,9 +209,13 @@ class UAVSim():
             # z-rotation
             if keys[YAW_LEFT]:
                 self.yaw_c += (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                if self.yaw_c > math.pi:
+                    self.yaw_c -= 2*math.pi
                 self.teleop_text = "YAW_LEFT"
             if keys[YAW_RIGHT]:
                 self.yaw_c -= (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                if self.yaw_c < -math.pi:
+                    self.yaw_c += 2*math.pi
                 self.teleop_text = "YAW_RIGHT"
         else:
             if keys[ROLL_RIGHT]:
@@ -308,7 +312,7 @@ class UAVSim():
         return body_vel
 
     def get_imu(self):
-        self.imu_sensor[2] *= -1.0 # Yaw output seems to be backwards
+        self.imu_sensor[5] *= -1.0 # Yaw output seems to be backwards
         return self.imu_sensor
 
     def get_orientation(self):
