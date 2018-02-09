@@ -3,7 +3,6 @@ sys.path.insert(0, '/home/skyler/school/ecen631/state_plotter')
 
 import numpy as np
 import math
-import scipy.io as sio # For exporting to matlab
 import pygame
 import transforms3d
 from pygame.locals import *
@@ -105,21 +104,16 @@ class UAVSim():
         self.imu_sensor = np.zeros((6,1))
         self.velocity_sensor = np.zeros((3,1))
 
-        # Data saving options
-        self.saving_state = False
-        self.sim_state_list = []
-        self.sim_step_list = []
-        self.state_file = 'states.mat'
-
-        self.plotting_states = False
+        # Default system variables
+        self.plotting_states    = False
+        self.paused             = False
+        self.manual_control     = True
 
         # Initialize world
         print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
         self.pressed = {PAUSE: False, MANUAL_TOGGLE: False}
 
-        self.paused = False
-        self.manual_control = True
 
     ######## Plotting Functions ########
     def init_plots(self, plotting_freq):
@@ -314,7 +308,7 @@ class UAVSim():
         self.yawrate_c = self.yaw_pid.compute_control(yaw, self.yaw_c, self.dt)
 
 
-    ######## Data access ########    
+    ######## Data access ########
     def set_command(self, roll, pitch, yawrate, alt):
         self.command = np.array([-roll, pitch, yawrate, alt]) # Roll command is backward in sim
 
@@ -327,13 +321,6 @@ class UAVSim():
 
     def get_state(self):
         return self.sim_state
-
-    def set_state_file(self, state_file):
-        self.saving_state = True
-        self.state_file = state_file
-
-    def write_state(self):
-        sio.savemat(self.state_file, {'states':np.ravel(self.sim_state_list), 't':np.ravel(self.sim_step_list)})
 
     def get_camera(self):
         return self.camera_sensor
@@ -372,10 +359,6 @@ class UAVSim():
             self.sim_step += 1
             self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
             self.extract_sensor_data() # Get and store sensor data from state
-            if self.saving_state:
-                self.sim_state_list.append(self.sim_state)
-                self.sim_step_list.append(self.sim_step)
-                self.write_state() # REVIEW: Is this too frequent?
             if self.plotting_states:
                 t = self.sim_step*self.dt
                 self.plotter.add_vector_measurement("position", self.get_position(), t)
@@ -387,6 +370,4 @@ class UAVSim():
                 self.plotter.update_plots()
 
     def exit_sim(self):
-        if self.saving_state:
-            self.write_state()
         sys.exit()
