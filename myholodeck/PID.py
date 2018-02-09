@@ -44,3 +44,7 @@ class PID:
 
     def saturate(self, x, min_val, max_val):
         return max(min(x, max_val),min_val)
+
+    def reset(self):
+        # Reinitialize controller with same parameters
+        self.__init__(self.kp, self.kd, self.ki, self.min, self.max, self.angle_wrap)

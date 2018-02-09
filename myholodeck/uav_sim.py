@@ -33,8 +33,9 @@ VEL_RIGHT   = K_d
 VEL_LEFT    = K_a
 # System commands
 QUIT        = K_ESCAPE
+RESET       = K_HOME
 PAUSE       = K_SPACE
-MANUAL_TOGGLE = K_0
+MANUAL_TOGGLE = K_LCTRL
 
 
 class UAVSim():
@@ -172,6 +173,10 @@ class UAVSim():
         if keys[QUIT]:
             # return False # Quit the program
             self.exit_sim()
+
+        if keys[RESET]:
+            self.teleop_text = "Position reset"
+            self.reset_sim()
 
         if keys[PAUSE]:
             # Only trigger on edge
@@ -368,6 +373,25 @@ class UAVSim():
                 self.plotter.add_vector_measurement("command", self.command, t)
                 self.plotter.add_vector_measurement("vel_command", [self.vx_c, self.vy_c, self.yaw_c], t)
                 self.plotter.update_plots()
+
+    def reset_sim(self):
+        # Re-initialize commands
+        self.set_command(0, 0, 0, 0)
+        self.roll_c = 0.0
+        self.pitch_c = 0.0
+        self.yawrate_c = 0.0
+        self.alt_c = 0.0
+        self.vx_c = 0.0
+        self.vy_c = 0.0
+        self.yaw_c = 0.0
+
+        # Re-initialize controllers
+        self.vx_pid.reset()
+        self.vy_pid.reset()
+        self.yaw_pid.reset()
+
+        # Reset the holodeck
+        self.env.reset()
 
     def exit_sim(self):
         sys.exit()
