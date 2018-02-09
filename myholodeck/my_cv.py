@@ -36,11 +36,50 @@ def get_grid(origin, width, height, num_points):
                         for x in range(0,width)[::px_per_pt]])
     return grid
 
+class FrameBuffer():
+    def __init__(self, buffer_size):
+        self.size = buffer_size
+        self.buffer = []
+
+    def add_frame(self, frame):
+        self.buffer.insert(0, frame.copy())
+        while len(self.buffer) > self.size:
+            self.buffer.pop()
+
+    def fill(self, frame):
+        self.clear()
+        for i in range(0,self.size):
+            self.add_frame(frame)
+
+    def pop(self):
+        return self.buffer.pop()
+
+    def peek(self, i):
+        if i < self.size:
+            return self.buffer[i]
+        else:
+            print("Invalid index: {0}".format(i))
+
+    def set_size(self, size):
+        self.size = size
+
+    def cnt(self):
+        return len(self.buffer)
+
+    def clear(self):
+        self.buffer = []
+
+
+####################################################
+############### Computer Vision Classes ############
+####################################################
 
 class OpticalFlow():
-    def __init__(self):
-        self.prev_gray = None
-        self.initialized = False
+    def __init__(self, buffer_size=1):
+        self.regions_p0 = {}
+        self.regions_prev_gray = {}
+        self.regions_frame_buffer = {}
+        self.buffer_size = buffer_size
 
         self.lk_params = dict( winSize  = (15,15),
                                maxLevel = 2,
@@ -68,58 +107,66 @@ class OpticalFlow():
         # self.u = np.zeros_like(self.grid)
 
         self.num_points = 300
-        self.mask = np.zeros((512,512,4))
         # self.color = np.random.randint(0,255,(np.shape(self.grid)[0],3))
         self.color = [0,0,255]
 
         self.display = np.zeros(self.default_size)
+        self.display_init = False
 
-
-
-    def compute_optical_flow(self, frame, color, region=None):
+    def compute_optical_flow(self, frame, color=[0,0,255], region=None):
+        region_str = region.__str__()
         # Initialize prev data, if needed
-        if not self.initialized:
-            self.prev_gray = get_gray(frame, img_type='rgba')
+        if not region_str in self.regions_frame_buffer:
+            self.regions_frame_buffer[region_str] = FrameBuffer(self.buffer_size)
+            self.regions_frame_buffer[region_str].fill(get_gray(frame, img_type='rgba'))
             # self.p0 = cv2.goodFeaturesToTrack(self.prev_gray, mask = None, **self.feature_params)
             if region == None:
-                self.p0 = get_grid([0,0], self.default_size[0], self.default_size[1], self.num_points)
+                self.regions_p0[region_str] = get_grid([0,0], self.default_size[0], self.default_size[1], self.num_points)
             else:
-                self.p0 = get_grid([region[0],region[1]], region[2], region[3], self.num_points)
-            self.initialized = True
+                self.regions_p0[region_str] = get_grid([region[0],region[1]], region[2], region[3], self.num_points)
+
+        # Get appropriate data for the region
+        p0 = self.regions_p0[region_str]
+        prev_gray = self.regions_frame_buffer[region_str].pop()
+
         # Zero out the mask
-        self.mask = np.zeros_like(frame)
+        mask = np.zeros_like(frame)
 
         # Get gray images
         gray = get_gray(frame, img_type='rgba')
 
 
         # Calculate optical flow
-        p1, st, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.p0, None, **self.lk_params)
+        p1, st, err = cv2.calcOpticalFlowPyrLK(prev_gray, gray, p0, None, **self.lk_params)
 
         # Select good points
         good_new = p1[st==1]
-        good_old = self.p0[st==1]
+        good_old = p0[st==1]
 
 
-        self.prev_gray = gray.copy()
+        self.regions_frame_buffer[region_str].add_frame(gray)
         # self.p0 = good_new.reshape(-1,1,2)
 
         # Get static optical flow
-        self.u = (good_new - good_old)/self.dt
+        u = (good_new - good_old)/self.dt
 
-        scale = 0.5
-        for i,(pt,u) in enumerate(zip(good_old,self.u)):
+        scale = 0.5/self.buffer_size
+        for i,(pt,vec) in enumerate(zip(good_old,u)):
             a,b = pt.ravel()
-            c,d = pt + scale*u
+            c,d = pt + scale*vec
             # c,d = old.ravel()
-            self.mask = cv2.arrowedLine(self.mask, (a,b),(c,d), color, 1)
+            mask = cv2.arrowedLine(mask, (a,b),(c,d), color, 1)
             frame = cv2.circle(frame,(a,b),2,color,-1)
-            img = cv2.add(frame,self.mask)
 
-        self.display = img
+        if not self.display_init:
+            self.display = cv2.add(frame,mask)
+            self.display_init = True
+        else:
+            self.display = cv2.add(self.display,mask)
 
-        return self.u
+        return u
 
-    def display_image(self):
-        cv2.imshow('Optical Flow',self.display)
+    def display_image(self, win_name="Optical Flow"):
+        self.display_init = False
+        cv2.imshow(win_name,self.display)
         cv2.waitKey(1)

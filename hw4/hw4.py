@@ -14,6 +14,7 @@ import time
 
 from uav_sim import UAVSim
 from my_cv import OpticalFlow
+from optical_control import OpticalControl
 
 urban_world = 'UrbanCity'
 forest_world = 'EuropeanForest'
@@ -22,10 +23,11 @@ redwood_world = 'RedwoodForest'
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
-    uav_sim.init_plots(plotting_freq=5)
-    uav_sim.command_velocity = True
+    uav_sim.init_plots(plotting_freq=15)
+    uav_sim.velocity_teleop = True
 
     op_flow = OpticalFlow()
+    control = OpticalControl()
 
     for i in range(0,5):
         uav_sim.step_sim()
@@ -39,12 +41,12 @@ def holodeck_sim():
         # bgr = cv2.cvtColor(cam, cv2.COLOR_RGBA2BGR)
         # gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
-        # Implement optical flow
-        width = 512
-        height = 512
-        region = [0,100, 512, 312]
-        op_flow.compute_optical_flow(cam, color=[0,0,255], region=region)
-        op_flow.display_image()
+        vx_c = 3.0
+        vy_c = control.follow_corridor(cam, display=True)
+        yaw_c = uav_sim.yaw_c
+        alt_c = 2.0
+
+        uav_sim.command_velocity(vx_c, vy_c, yaw_c, alt_c)
 
         # cv2.imshow('Holodeck', cam)
         # cv2.waitKey(1)
