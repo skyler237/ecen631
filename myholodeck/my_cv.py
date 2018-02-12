@@ -193,8 +193,8 @@ class OpticalFlow():
 
     def remove_rotation(self, points, vecs, ang_vel):
         k_roll = 0.6
-        k_pitch = 0.5
-        k_yaw = 1.0
+        k_pitch = 0.65
+        k_yaw = 0.9
         # k_roll = 0.0
         # k_pitch = 0.0
         # k_yaw = 0.0
@@ -214,7 +214,7 @@ class OpticalFlow():
             # Compute yaw effects
             w_yaw = ang_vel[2]
             # yaw_flow = np.array([-(self.default_size[0]/self.fov)*w_yaw, 0.])*k_yaw
-            yaw_flow = np.array([-self.f*w_yaw, 0.])*k_yaw
+            yaw_flow = np.array([self.f*w_yaw, 0.])*k_yaw
 
             stable_v = v - (roll_flow + pitch_flow + yaw_flow)
 

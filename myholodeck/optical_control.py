@@ -19,14 +19,14 @@ class OpticalControl():
         self.frame_height = 512
 
         # CV class initialization
-        op_flow_buffer_size = 1
+        op_flow_buffer_size = 3
         self.op_flow = OpticalFlow(op_flow_buffer_size)
 
         # Corridor following params
         self.corridor_color = [0,255,0]
         self.corridor_kp = 0.015/op_flow_buffer_size
-        corridor_region_width = 150 # px
-        corridor_region_height = 300
+        corridor_region_width = 160 # px
+        corridor_region_height = 250
         corridor_region_y_offset = (self.frame_height - corridor_region_height)/2 # px
         self.corridor_region_left = [0, corridor_region_y_offset, corridor_region_width, corridor_region_height]
         self.corridor_region_right = [self.frame_width - corridor_region_width, corridor_region_y_offset,
