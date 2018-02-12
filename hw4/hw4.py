@@ -41,8 +41,9 @@ def holodeck_sim():
         # bgr = cv2.cvtColor(cam, cv2.COLOR_RGBA2BGR)
         # gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
+        ang_vel = uav_sim.get_imu()[3:6]
         vx_c = 3.0
-        vy_c = control.follow_corridor(cam, display=True)
+        vy_c = control.follow_corridor(cam, display=True, ang_vel=ang_vel)
         yaw_c = uav_sim.yaw_c
         alt_c = 2.0
 

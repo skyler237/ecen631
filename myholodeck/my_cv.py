@@ -93,6 +93,9 @@ class OpticalFlow():
                                 blockSize = 7 )
 
         self.default_size = (512,512,4)
+        self.fov = np.pi/2.0
+        self.f = self.default_size[0]/2.0
+        self.center = np.array([self.default_size[0]/2, self.default_size[1]/2])
         self.dt = 1.0/30.0
 
         # # Define a point grid
@@ -113,24 +116,33 @@ class OpticalFlow():
         self.display = np.zeros(self.default_size)
         self.display_init = False
 
-    def compute_optical_flow(self, frame, color=[0,0,255], region=None):
+    def compute_optical_flow(self, frame, color=[0,0,255], region=None, ang_vel=[0., 0., 0.], average=False):
+        # Zero out the mask
+        mask = np.zeros_like(frame)
+
+        # Extract region values
         region_str = region.__str__()
+        if region == None:
+            region_x = 0
+            region_y = 0
+            region_width = self.default_size[0]
+            region_height = self.default_size[1]
+        else:
+            region_x = int(region[0])
+            region_y = int(region[1])
+            region_width = int(region[2])
+            region_height = int(region[3])
+
         # Initialize prev data, if needed
         if not region_str in self.regions_frame_buffer:
             self.regions_frame_buffer[region_str] = FrameBuffer(self.buffer_size)
             self.regions_frame_buffer[region_str].fill(get_gray(frame, img_type='rgba'))
             # self.p0 = cv2.goodFeaturesToTrack(self.prev_gray, mask = None, **self.feature_params)
-            if region == None:
-                self.regions_p0[region_str] = get_grid([0,0], self.default_size[0], self.default_size[1], self.num_points)
-            else:
-                self.regions_p0[region_str] = get_grid([region[0],region[1]], region[2], region[3], self.num_points)
+            self.regions_p0[region_str] = get_grid([region_x,region_y], region_width, region_height, self.num_points)
 
         # Get appropriate data for the region
         p0 = self.regions_p0[region_str]
         prev_gray = self.regions_frame_buffer[region_str].pop()
-
-        # Zero out the mask
-        mask = np.zeros_like(frame)
 
         # Get gray images
         gray = get_gray(frame, img_type='rgba')
@@ -150,13 +162,26 @@ class OpticalFlow():
         # Get static optical flow
         u = (good_new - good_old)/self.dt
 
-        scale = 0.5/self.buffer_size
-        for i,(pt,vec) in enumerate(zip(good_old,u)):
-            a,b = pt.ravel()
-            c,d = pt + scale*vec
-            # c,d = old.ravel()
-            mask = cv2.arrowedLine(mask, (a,b),(c,d), color, 1)
-            frame = cv2.circle(frame,(a,b),2,color,-1)
+        # Cancel out flow from rotational motion
+        u_stable = self.remove_rotation(good_old, u, ang_vel)
+
+        scale = 1.0/self.buffer_size
+        if average == True:
+            u_stable = np.average(u_stable,0)
+            region_center = np.array([region_x+region_width/2, region_y+region_height/2])
+            a,b = region_center.ravel()
+            c,d = region_center + scale*u_stable
+            mask = cv2.arrowedLine(mask, (int(a),int(b)),(int(c),int(d)), color, 2)
+            mask = cv2.rectangle(mask, (region_x, region_y), (region_x+region_width,region_y+region_height), color)
+            frame = cv2.circle(frame,(int(a),int(b)),3,color,-1)
+        else:
+            for i,(pt,vec) in enumerate(zip(good_old,u_stable)):
+                a,b = pt.ravel()
+                c,d = pt + scale*vec
+                c,d = int(c),int(d)
+                # c,d = old.ravel()
+                mask = cv2.arrowedLine(mask, (a,b),(c,d), color, 1)
+                frame = cv2.circle(frame,(a,b),2,color,-1)
 
         if not self.display_init:
             self.display = cv2.add(frame,mask)
@@ -164,7 +189,42 @@ class OpticalFlow():
         else:
             self.display = cv2.add(self.display,mask)
 
-        return u
+        return u_stable
+
+    def remove_rotation(self, points, vecs, ang_vel):
+        k_roll = 0.6
+        k_pitch = 0.5
+        k_yaw = 1.0
+        # k_roll = 0.0
+        # k_pitch = 0.0
+        # k_yaw = 0.0
+        stable_vecs = []
+        # print("ang_vel={0}".format(ang_vel))
+        for (p,v) in zip(points,vecs):
+            # Compute roll effects
+            w_roll = np.array([0., 0., ang_vel[0]])
+            r = p - self.center
+            roll_flow = np.cross(-w_roll,r)[0:2]*k_roll
+
+            # Compute pitch effects
+            w_pitch = ang_vel[1]
+            # pitch_flow = np.array([0., (self.default_size[1]/self.fov)*w_pitch])*k_pitch
+            pitch_flow = np.array([0., (self.f)*w_pitch])*k_pitch
+
+            # Compute yaw effects
+            w_yaw = ang_vel[2]
+            # yaw_flow = np.array([-(self.default_size[0]/self.fov)*w_yaw, 0.])*k_yaw
+            yaw_flow = np.array([-self.f*w_yaw, 0.])*k_yaw
+
+            stable_v = v - (roll_flow + pitch_flow + yaw_flow)
+
+            stable_vecs.append(stable_v)
+
+            # print("point={0}".format(p))
+            # print("vel={0}".format(v))
+            # print("flow: roll={0}, pitch={1}, yaw={2}".format(roll_flow, pitch_flow, yaw_flow))
+
+        return np.asarray(stable_vecs)
 
     def display_image(self, win_name="Optical Flow"):
         self.display_init = False

@@ -19,7 +19,7 @@ class OpticalControl():
         self.frame_height = 512
 
         # CV class initialization
-        op_flow_buffer_size = 3
+        op_flow_buffer_size = 1
         self.op_flow = OpticalFlow(op_flow_buffer_size)
 
         # Corridor following params
@@ -32,16 +32,21 @@ class OpticalControl():
         self.corridor_region_right = [self.frame_width - corridor_region_width, corridor_region_y_offset,
                                                                     corridor_region_width, corridor_region_height]
 
-    def follow_corridor(self, frame, display=True):
+    def follow_corridor(self, frame, display=True, ang_vel=[0., 0., 0.]):
         # Get optical flow for the left and right regions
-        left_flow = self.op_flow.compute_optical_flow(frame, self.corridor_color, self.corridor_region_left)
-        right_flow = self.op_flow.compute_optical_flow(frame, self.corridor_color, self.corridor_region_right)
+        left_flow = self.op_flow.compute_optical_flow(frame, self.corridor_color, self.corridor_region_left,
+                                                        ang_vel=ang_vel, average=True)
+        right_flow = self.op_flow.compute_optical_flow(frame, self.corridor_color, self.corridor_region_right,
+                                                        ang_vel=ang_vel, average=True)
 
         # Get averaged x magnitudes
         # left_avg_norm = sum([u[0] for u in left_flow])/len(left_flow)
         # right_avg_norm = sum([u[0] for u in right_flow])/len(right_flow)
-        left_avg_norm = sum([np.linalg.norm(u) for u in left_flow])/len(left_flow)
-        right_avg_norm = sum([np.linalg.norm(u) for u in right_flow])/len(right_flow)
+        # left_avg_norm = sum([np.linalg.norm(u) for u in left_flow])/len(left_flow)
+        # right_avg_norm = sum([np.linalg.norm(u) for u in right_flow])/len(right_flow)
+        left_avg_norm = np.linalg.norm(left_flow)
+        right_avg_norm = np.linalg.norm(right_flow)
+
 
         vy_command = self.corridor_kp*(left_avg_norm - right_avg_norm)
 
