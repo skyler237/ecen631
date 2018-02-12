@@ -21,6 +21,7 @@ class OpticalControl():
         # CV class initialization
         op_flow_buffer_size = 3
         self.op_flow = OpticalFlow(op_flow_buffer_size)
+        self.f = self.frame_width/2
 
         # Corridor following params
         self.corridor_color = [0,255,0]
@@ -31,6 +32,11 @@ class OpticalControl():
         self.corridor_region_left = [0, corridor_region_y_offset, corridor_region_width, corridor_region_height]
         self.corridor_region_right = [self.frame_width - corridor_region_width, corridor_region_y_offset,
                                                                     corridor_region_width, corridor_region_height]
+
+        # Altitude hold params
+        self.altitude_color = [255,0,0]
+        self.altitude_kp = 0.01/op_flow_buffer_size
+
 
     def follow_corridor(self, frame, display=True, ang_vel=[0., 0., 0.]):
         # Get optical flow for the left and right regions
@@ -54,3 +60,5 @@ class OpticalControl():
             self.op_flow.display_image('Follow corridor')
 
         return vy_command
+
+    def altitude_hold(self, frame, display=True, ang_vel=[0., 0., 0.])

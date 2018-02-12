@@ -23,7 +23,7 @@ redwood_world = 'RedwoodForest'
 def holodeck_sim():
     uav_sim = UAVSim(urban_world)
     uav_sim.init_teleop()
-    uav_sim.init_plots(plotting_freq=15)
+    # uav_sim.init_plots(plotting_freq=5)
     uav_sim.velocity_teleop = True
 
     op_flow = OpticalFlow()
@@ -45,7 +45,7 @@ def holodeck_sim():
         vx_c = 3.0
         vy_c = control.follow_corridor(cam, display=True, ang_vel=ang_vel)
         yaw_c = uav_sim.yaw_c
-        alt_c = 2.0
+        alt_c = 3.0
 
         uav_sim.command_velocity(vx_c, vy_c, yaw_c, alt_c)
 
