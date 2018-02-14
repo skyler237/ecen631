@@ -189,12 +189,15 @@ class OpticalFlow():
         else:
             self.display = cv2.add(self.display,mask)
 
-        return u_stable
+        if average == True:
+            return u_stable
+        else:
+            return [u_stable, good_old]
 
     def remove_rotation(self, points, vecs, ang_vel):
         k_roll = 0.6
         k_pitch = 0.65
-        k_yaw = 0.9
+        k_yaw = 1.5
         # k_roll = 0.0
         # k_pitch = 0.0
         # k_yaw = 0.0
@@ -217,6 +220,7 @@ class OpticalFlow():
             yaw_flow = np.array([self.f*w_yaw, 0.])*k_yaw
 
             stable_v = v - (roll_flow + pitch_flow + yaw_flow)
+            # stable_v = v - yaw_flow
 
             stable_vecs.append(stable_v)
 
