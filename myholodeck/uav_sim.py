@@ -1,6 +1,3 @@
-import sys
-sys.path.insert(0, '/home/skyler/school/ecen631/state_plotter')
-
 import numpy as np
 import math
 import pygame
@@ -11,8 +8,8 @@ from Holodeck import Holodeck, Agents
 from Holodeck.Environments import HolodeckEnvironment
 from Holodeck.Sensors import Sensors
 # from uav_state_plotter import Plotter
-from state_plotter import Plotter
-from PID import PID
+from state_plotter.state_plotter import Plotter
+from myholodeck.PID import PID
 
 ### Command key mappings ###
 # Basic commands
