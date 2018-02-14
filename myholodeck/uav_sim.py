@@ -3,7 +3,6 @@ sys.path.insert(0, '/home/skyler/school/ecen631/state_plotter')
 
 import numpy as np
 import math
-import scipy.io as sio # For exporting to matlab
 import pygame
 import transforms3d
 from pygame.locals import *
@@ -34,7 +33,9 @@ VEL_RIGHT   = K_d
 VEL_LEFT    = K_a
 # System commands
 QUIT        = K_ESCAPE
+RESET       = K_HOME
 PAUSE       = K_SPACE
+MANUAL_TOGGLE = K_LCTRL
 
 
 class UAVSim():
@@ -63,7 +64,7 @@ class UAVSim():
         self.speed_val = 0
 
         # Velocity parmeters
-        self.command_velocity = True
+        self.velocity_teleop = True
         self.vx_c   = 0.0
         self.vy_c   = 0.0
         self.vy_min = 0.5
@@ -88,7 +89,6 @@ class UAVSim():
         # Teleop
         self.using_teleop = False
         self.teleop_text = "Click here to use teleop"
-        self.pause_pressed = False
 
         # Simulation return variables
         self.sim_state = 0
@@ -105,18 +105,16 @@ class UAVSim():
         self.imu_sensor = np.zeros((6,1))
         self.velocity_sensor = np.zeros((3,1))
 
-        # Data saving options
-        self.saving_state = False
-        self.sim_state_list = []
-        self.sim_step_list = []
-        self.state_file = 'states.mat'
-
-        self.plotting_states = False
+        # Default system variables
+        self.plotting_states    = False
+        self.paused             = False
+        self.manual_control     = True
 
         # Initialize world
         print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
-        self.paused = False
+        self.pressed = {PAUSE: False, MANUAL_TOGGLE: False}
+
 
     ######## Plotting Functions ########
     def init_plots(self, plotting_freq):
@@ -161,12 +159,56 @@ class UAVSim():
         self.teleop_screen.blit(block, rect)
         pygame.display.flip()
 
-    def get_teleop_command(self):
+    def process_teleop(self):
         pygame.event.pump()
         keys=pygame.key.get_pressed()
 
+        self.teleop_system_events(keys)
+        if self.manual_control:
+            self.teleop_commands(keys)
+
+
+    def teleop_system_events(self,keys):
+        # Update control values
+        if keys[QUIT]:
+            # return False # Quit the program
+            self.exit_sim()
+
+        if keys[RESET]:
+            self.teleop_text = "Position reset"
+            self.reset_sim()
+
+        if keys[PAUSE]:
+            # Only trigger on edge
+            if not self.pressed[PAUSE]:
+                self.pressed[PAUSE] = True
+                self.paused = self.paused ^ True
+                if self.paused == True:
+                    self.teleop_text = "Simulation paused"
+                else:
+                    self.teleop_text = "Simulation resumed"
+            # TODO: add debouncing timer
+        elif self.pressed[PAUSE]: # Reset edge variable
+            self.pressed[PAUSE] = False
+        if self.paused:
+            return
+
+        if keys[MANUAL_TOGGLE]:
+            # Only trigger on edge
+            if not self.pressed[MANUAL_TOGGLE]:
+                self.pressed[MANUAL_TOGGLE] = True
+                self.manual_control = self.manual_control ^ True
+                if self.manual_control == True:
+                    self.teleop_text = "Manual control mode"
+                else:
+                    self.teleop_text = "Automatic control mode"
+            # TODO: add debouncing timer
+        elif self.pressed[MANUAL_TOGGLE]: # Reset edge variable
+            self.pressed[MANUAL_TOGGLE] = False
+
+    def teleop_commands(self, keys):
         # Default all angles/rates to zero at each time step
-        if not self.command_velocity:
+        if not self.velocity_teleop:
             self.roll_c = 0.0
             self.pitch_c = 0.0
             self.yawrate_c = 0
@@ -174,26 +216,8 @@ class UAVSim():
             self.vx_c = 0.0
             self.vy_c = 0.0
 
-        # Update control values
-        if keys[QUIT]:
-            # return False # Quit the program
-            self.exit_sim()
-        if keys[PAUSE]:
-            # Only trigger on edge
-            if not self.pause_pressed:
-                self.pause_pressed = True
-                self.paused = self.paused ^ True
-                if self.paused == True:
-                    self.teleop_text = "Simulation paused"
-                else:
-                    self.teleop_text = "Simulation resumed"
-            # TODO: add debouncing timer
-        elif self.pause_pressed: # Reset edge variable
-            self.pause_pressed = False
-        if self.paused:
-            return
         # Lateral motion
-        if self.command_velocity:
+        if self.velocity_teleop:
             if keys[VEL_RIGHT]:
                 self.vy_c = (self.vy_min + (self.vy_max - self.vy_min)*self.speed_val)
                 self.teleop_text = "VEL_RIGHT"
@@ -248,22 +272,35 @@ class UAVSim():
         if keys[SPEED_UP]:
             self.speed_val += self.speed_rate
             self.speed_val = min(self.speed_val, self.speed_max)
-            self.teleop_text = "Speed raised to {0:.1f}".format(self.speed_val)
+            self.teleop_text = "Speed raised to {0:.2f}".format(self.speed_val)
         if keys[SPEED_DOWN]:
             self.speed_val -= self.speed_rate
             self.speed_val = max(self.speed_val, self.speed_min)
-            self.teleop_text = "Speed lowered to {0:.1f}".format(self.speed_val)
+            self.teleop_text = "Speed lowered to {0:.2f}".format(self.speed_val)
 
-        if self.command_velocity:
+        if self.velocity_teleop:
             # Update roll and pitch commands based on velocity commands
-            self.velocity_control(self.vx_c, self.vy_c, self.yaw_c)
+            self.compute_velocity_control()
 
-        self.command = np.array([-self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c]) # Roll command is backward in sim
+        self.set_command(self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c)
 
-        return True
+
+    ######## External commands ########
+    def command_velocity(self, vx, vy, yaw, alt):
+        if self.manual_control:
+            return
+
+        self.vx_c = vx
+        self.vy_c = vy
+        self.yaw_c = yaw
+        self.alt_c = alt
+
+        self.compute_velocity_control()
+        self.set_command(self.roll_c, self.pitch_c, self.yawrate_c, self.alt_c)
+
 
     ######## Control ########
-    def velocity_control(self, vx_c, vy_c, yaw_c):
+    def compute_velocity_control(self):
         # Get current state
         vel = self.get_body_velocity()
         vx = vel[0]
@@ -271,14 +308,15 @@ class UAVSim():
         yaw = self.get_euler()[2]
 
         # Compute PID control
-        self.pitch_c = self.vx_pid.compute_control(vx, vx_c, self.dt)
-        self.roll_c = self.vy_pid.compute_control(vy, vy_c, self.dt)
-        self.yawrate_c = self.yaw_pid.compute_control(yaw, yaw_c, self.dt)
-
-
+        self.pitch_c = self.vx_pid.compute_control(vx, self.vx_c, self.dt)
+        self.roll_c = self.vy_pid.compute_control(vy, self.vy_c, self.dt)
+        self.yawrate_c = self.yaw_pid.compute_control(yaw, self.yaw_c, self.dt)
 
 
     ######## Data access ########
+    def set_command(self, roll, pitch, yawrate, alt):
+        self.command = np.array([-roll, pitch, yawrate, alt]) # Roll command is backward in sim
+
     def extract_sensor_data(self):
         self.camera_sensor      = self.sim_state[Sensors.PRIMARY_PLAYER_CAMERA]
         self.position_sensor    = np.ravel(self.sim_state[Sensors.LOCATION_SENSOR])
@@ -288,13 +326,6 @@ class UAVSim():
 
     def get_state(self):
         return self.sim_state
-
-    def set_state_file(self, state_file):
-        self.saving_state = True
-        self.state_file = state_file
-
-    def write_state(self):
-        sio.savemat(self.state_file, {'states':np.ravel(self.sim_state_list), 't':np.ravel(self.sim_step_list)})
 
     def get_camera(self):
         return self.camera_sensor
@@ -325,7 +356,7 @@ class UAVSim():
 
     def step_sim(self):
         if self.using_teleop:
-            self.get_teleop_command()
+            self.process_teleop()
             self.update_teleop_display()
 
         # Step holodeck simulator
@@ -333,10 +364,6 @@ class UAVSim():
             self.sim_step += 1
             self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
             self.extract_sensor_data() # Get and store sensor data from state
-            if self.saving_state:
-                self.sim_state_list.append(self.sim_state)
-                self.sim_step_list.append(self.sim_step)
-                self.write_state() # REVIEW: Is this too frequent?
             if self.plotting_states:
                 t = self.sim_step*self.dt
                 self.plotter.add_vector_measurement("position", self.get_position(), t)
@@ -347,7 +374,24 @@ class UAVSim():
                 self.plotter.add_vector_measurement("vel_command", [self.vx_c, self.vy_c, self.yaw_c], t)
                 self.plotter.update_plots()
 
+    def reset_sim(self):
+        # Re-initialize commands
+        self.set_command(0, 0, 0, 0)
+        self.roll_c = 0.0
+        self.pitch_c = 0.0
+        self.yawrate_c = 0.0
+        self.alt_c = 0.0
+        self.vx_c = 0.0
+        self.vy_c = 0.0
+        self.yaw_c = 0.0
+
+        # Re-initialize controllers
+        self.vx_pid.reset()
+        self.vy_pid.reset()
+        self.yaw_pid.reset()
+
+        # Reset the holodeck
+        self.env.reset()
+
     def exit_sim(self):
-        if self.saving_state:
-            self.write_state()
         sys.exit()
