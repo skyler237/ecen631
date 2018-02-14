@@ -48,9 +48,9 @@ class OpticalControl():
 
         # Altitude hold params
         self.altitude_color = [255,0,0]
-        self.altitude_kp = 0.001/op_flow_buffer_size
-        self.max_hdot = 0.65 # m/s
-        self.alt_vel_ratio = 0.5
+        self.altitude_kp = 0.003/op_flow_buffer_size
+        self.max_hdot = 1.0 # m/s
+        self.alt_vel_ratio = 1.0
         alt_region_height = 180
         alt_region_width = 300
         alt_region_x_offset = (self.frame_width - alt_region_width)/2
