@@ -15,7 +15,7 @@ class TargetTracker:
                          "MeanShift": MeanShiftTracker,
                          "BGSubtraction": BGSubtractionTracker}
         self.tracker_type = tracker_types[tracker_type]
-        self.tracker = self.tracker_type(dt=dt)
+        self.tracker = self.tracker_type(max_features=15, dt=dt)
         self.roi_width = 0
         self.roi_height = 0
 
@@ -26,12 +26,16 @@ class TargetTracker:
     def track_targets(self, frame):
         measurements = self.tracker.get_measurements(frame)
         avg_meas = self.weighted_average(measurements)
+        print("Measurement: \n{0}".format(avg_meas))
+        print("Before Update: \n{0}".format(self.filter.kalman.statePre))
         self.filter.correct(avg_meas)
+        print("After Update: \n{0}".format(self.filter.kalman.statePost))
         filtered_meas = self.filter.predict()
-        # set_trace()
-        region_center = [filtered_meas[0], filtered_meas[1]]
+        print("After Predict: \n{0}".format(self.filter.kalman.statePre))
+        region_center = np.copy([filtered_meas[0], filtered_meas[1]])
         # region_center = [int(feature_point[0][0]), int(feature_point[0][1])]
         self.tracker.set_roi(*region_center, self.roi_width, self.roi_height, center=True)
+        print("After Predict TEST: \n{0}".format(self.filter.kalman.statePre))
         self.tracker.display('Target Tracker')
 
     def weighted_average(self, measurements):
@@ -41,13 +45,18 @@ class TargetTracker:
         ### Find the mahalanobis distance of each measurement
         # Get innovation cov matrix
         S = self.filter.get_S_matrix()
-        # Get current estimated state
-        xhat = self.filter.kalman.statePre
+        # Get current estimated state (only use pos and vel)
+        xhat = self.filter.kalman.statePre[0:4]
 
-        D = [[math.sqrt(np.matmul(np.matmul(np.transpose(y - xhat),np.linalg.inv(S)),(y - xhat)))] for y in measurements]
+        # Get mahalanobis distances
+        D = np.array([[math.sqrt(np.matmul(np.matmul(np.transpose(y - xhat),np.linalg.inv(S)),(y - xhat)))] for y in measurements])
+        V = np.array([[np.linalg.norm(y[2:4])]for y in measurements])
 
-        weighted_meas = np.multiply(D,measurements)
-        weighted_avg = np.sum(weighted_meas,0)/np.sum(D,1)
+        # Define cost
+        C = 1.0/D + V
+
+        weighted_meas = np.array([c*m for c,m in zip(C,measurements)])
+        weighted_avg = np.sum(weighted_meas,0)/np.sum(C)
 
         return weighted_avg
 
@@ -72,7 +81,7 @@ class Filter:
         self.model_type = model_type
 
         self.meas_dim = 4
-        self.sigma_R  = 1.0
+        self.sigma_R  = 30.0
         if model_type == self.CONST_VEL:
             self.state_dim = 4
             self.sigma_Q = 5.0
@@ -180,12 +189,14 @@ class Tracker:
         pass
 
     def set_roi(self, region_x, region_y, region_width, region_height, center=False):
+        # Blank out roi
+        self.roi = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
         if center:
             region_x -= int(region_width/2)
             region_y -= int(region_height/2)
         self.roi_pos = (region_x, region_y)
-        cv2.rectangle(self.roi, (region_x, region_y), (region_x+region_width,region_y+region_height), color=255, thickness=cv2.FILLED)
-        cv2.rectangle(self.display_img, (region_x, region_y), (region_x+region_width,region_y+region_height), color=[0,0,255], thickness=2)
+        cv2.rectangle(self.roi, self.roi_pos, (region_x+region_width,region_y+region_height), color=255, thickness=cv2.FILLED)
+        cv2.rectangle(self.display_img, self.roi_pos, (region_x+region_width,region_y+region_height), color=[0,0,255], thickness=2)
 
     def display(self, img_name='Tracker'):
         # self.multi_image.set_image(self.display_img,0,0)
@@ -216,6 +227,7 @@ class KLTTracker(Tracker):
         self.initialized = False
         self.prev_frame = np.zeros(self.default_img_size)
         self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]))
+        self.prev_meas = np.zeros((1,4,1))
         self.colors = np.random.randint(0,255,(max_features,3))
 
     def initialize_features(self, frame):
@@ -231,6 +243,8 @@ class KLTTracker(Tracker):
 
         # Select good features in the roi
         self.features = cv2.goodFeaturesToTrack(gray, mask=self.roi, **self.feature_params)
+        if self.features is None:
+            return self.prev_meas
 
         # Calculate optical flow
         self.new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.features, None, **self.lk_params)
@@ -253,6 +267,8 @@ class KLTTracker(Tracker):
 
         # Concatenate positions and velocities to create measurements
         meas = np.hstack((self.features,u))
+
+        self.prev_meas = meas
 
         return meas
 
