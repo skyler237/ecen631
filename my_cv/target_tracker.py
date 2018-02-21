@@ -15,27 +15,22 @@ class TargetTracker:
                          "MeanShift": MeanShiftTracker,
                          "BGSubtraction": BGSubtractionTracker}
         self.tracker_type = tracker_types[tracker_type]
-        self.tracker = self.tracker_type(max_features=15, dt=dt)
+        self.tracker = self.tracker_type(max_features=40, dt=dt)
         self.roi_width = 0
         self.roi_height = 0
 
         # Initialize filter
-        self.filter_model = Filter.CONST_VEL
+        self.filter_model = Filter.CONST_ACCEL
         self.filter = Filter(self.filter_model, dt=dt)
 
     def track_targets(self, frame):
         measurements = self.tracker.get_measurements(frame)
         avg_meas = self.weighted_average(measurements)
-        print("Measurement: \n{0}".format(avg_meas))
-        print("Before Update: \n{0}".format(self.filter.kalman.statePre))
         self.filter.correct(avg_meas)
-        print("After Update: \n{0}".format(self.filter.kalman.statePost))
         filtered_meas = self.filter.predict()
-        print("After Predict: \n{0}".format(self.filter.kalman.statePre))
         region_center = np.copy([filtered_meas[0], filtered_meas[1]])
         # region_center = [int(feature_point[0][0]), int(feature_point[0][1])]
         self.tracker.set_roi(*region_center, self.roi_width, self.roi_height, center=True)
-        print("After Predict TEST: \n{0}".format(self.filter.kalman.statePre))
         self.tracker.display('Target Tracker')
 
     def weighted_average(self, measurements):
@@ -53,7 +48,9 @@ class TargetTracker:
         V = np.array([[np.linalg.norm(y[2:4])]for y in measurements])
 
         # Define cost
-        C = 1.0/D + V
+        kv = 5.0
+        kd = 3.0
+        C = kd*1.0/D + kv*V
 
         weighted_meas = np.array([c*m for c,m in zip(C,measurements)])
         weighted_avg = np.sum(weighted_meas,0)/np.sum(C)
@@ -157,8 +154,10 @@ class Filter:
         # Initialize state with first measurement
         if not self.state_init:
             # set_trace()
-            self.kalman.statePost = meas.astype(np.float32)
-            self.kalman.statePre = meas.astype(np.float32)
+            zeros = np.zeros((self.state_dim - self.meas_dim,1))
+            init_state = np.vstack((meas,zeros))
+            self.kalman.statePost = init_state.astype(np.float32)
+            self.kalman.statePre = init_state.astype(np.float32)
             self.state_init = True
 
         return self.kalman.correct(meas.astype(np.float32))
@@ -277,10 +276,10 @@ class KLTTracker(Tracker):
             a,b = new.ravel()
             c,d = old.ravel()
             self.tracks_mask = cv2.line(self.tracks_mask, (a,b),(c,d), (0,255,0), 2)
-            frame = cv2.circle(frame,(a,b),5,(0,255,0),-1)
+            frame = cv2.circle(frame,(a,b),2,(0,255,0),-1)
         for i,(feat) in enumerate(self.est_features):
             a,b = feat.ravel()
-            frame = cv2.circle(frame,(a,b),5,(0,0,255),-1)
+            frame = cv2.circle(frame,(a,b),2,(0,0,255),-1)
         self.display_img = cv2.add(frame, self.tracks_mask)
 
 
