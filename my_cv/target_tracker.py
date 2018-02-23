@@ -30,7 +30,7 @@ class TargetTracker:
         filtered_meas = self.filter.predict()
         region_center = np.copy([filtered_meas[0], filtered_meas[1]])
         # region_center = [int(feature_point[0][0]), int(feature_point[0][1])]
-        self.tracker.set_roi(*region_center, self.roi_width, self.roi_height, center=True)
+        self.tracker.set_roi(frame, *region_center, self.roi_width, self.roi_height, center=True)
         self.tracker.display('Target Tracker')
 
     def weighted_average(self, measurements):
@@ -62,7 +62,7 @@ class TargetTracker:
         region = cv2.selectROI(frame)
         self.roi_width = region[2]
         self.roi_height = region[3]
-        self.tracker.set_roi(*region, center=False)
+        self.tracker.set_roi(frame, *region, center=False)
 
     def reset(self):
         self.tracker = self.tracker_type()
@@ -172,6 +172,10 @@ class Tracker:
         self.default_img_size = (480,720,3)
         self.default_img_type = 'bgr'
 
+
+        self.prev_frame = np.zeros(self.default_img_size)
+        self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]))
+
         # Default variables
         self.dt = dt
         self.tracks_mask = np.zeros(self.default_img_size, dtype=np.uint8)
@@ -180,6 +184,7 @@ class Tracker:
         self.roi = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
         self.roi_pos = [0,0]
         self.multi_image = MultiImage(2,1)
+        self.bgsub = cv2.createBackgroundSubtractorMOG2()
 
         # For testing:
         self.est_features = []
@@ -187,7 +192,7 @@ class Tracker:
     def get_measurements(self, frame):
         pass
 
-    def set_roi(self, region_x, region_y, region_width, region_height, center=False):
+    def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
         # Blank out roi
         self.roi = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
         if center:
@@ -196,6 +201,20 @@ class Tracker:
         self.roi_pos = (region_x, region_y)
         cv2.rectangle(self.roi, self.roi_pos, (region_x+region_width,region_y+region_height), color=255, thickness=cv2.FILLED)
         cv2.rectangle(self.display_img, self.roi_pos, (region_x+region_width,region_y+region_height), color=[0,0,255], thickness=2)
+
+        # Use background subtraction to isolate moving targets within roi
+        fgmask = self.subtract_background(frame)
+        # Get the intersection between the foreground and roi rectangle
+        self.roi = np.logical_and(fgmask, self.roi).astype(np.uint8)*255
+
+    def subtract_background(self, frame):
+        fgmask = self.bgsub.apply(frame)
+        erode_kernel = np.ones((2,2),np.uint8)
+        fgmask = cv2.erode(fgmask, erode_kernel, iterations = 1)
+        dilate_kernel = np.ones((4,4),np.uint8)
+        fgmask = cv2.dilate(fgmask, dilate_kernel, iterations=1)
+        cv2.imshow("BG Sub", fgmask)
+        return fgmask
 
     def display(self, img_name='Tracker'):
         # self.multi_image.set_image(self.display_img,0,0)
@@ -224,8 +243,6 @@ class KLTTracker(Tracker):
 
         # Initialize data and variables
         self.initialized = False
-        self.prev_frame = np.zeros(self.default_img_size)
-        self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]))
         self.prev_meas = np.zeros((1,4,1))
         self.colors = np.random.randint(0,255,(max_features,3))
 
