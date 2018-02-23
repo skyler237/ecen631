@@ -63,3 +63,45 @@ class FrameBuffer:
 
     def clear(self):
         self.buffer = []
+
+class BackgrondSubtractor:
+    def __init__(self, display=False):
+        # Class option
+        self.display = display
+
+        # Initialize backgroud subtractor
+        self.bgsub = cv2.createBackgroundSubtractorMOG2()
+
+        # Set parameters
+        self.bgsub.setHistory(10)                        # default = 500
+        self.bgsub.setNMixtures(1)                       # default = 5
+        self.bgsub.setDetectShadows(False)               # default = True
+        self.bgsub.setBackgroundRatio(0.9)               # default = 0.9
+        self.bgsub.setVarThresholdGen(16.0)              # defualt = 9.0
+        self.bgsub.setVarThreshold(90.0)                 # defualt = 16.0
+        self.bgsub.setComplexityReductionThreshold(0.05) # default = 0.05
+        self.learning_rate = -1                          # default = -1
+
+        self.erode_kernel = np.ones((2,2),np.uint8)
+        self.dilate_kernel = np.ones((3,3),np.uint8)
+
+        # Initialize variables
+        self.prev_frame = None
+
+    def get_fg(self, frame):
+        fg = self.get_fg_raw(frame)
+        if len(self.erode_kernel) > 0:
+            fg = cv2.erode(fg, self.erode_kernel, iterations=1)
+        if len(self.dilate_kernel) > 0:
+            fg = cv2.dilate(fg, self.dilate_kernel, iterations=1)
+        if self.display:
+            cv2.imshow("Backround Subtraction", fg)
+            # cv2.waitKey(1)
+        return fg
+
+    def get_fg_raw(self, frame):
+        if self.prev_frame is None:
+            self.prev_frame = frame
+        # fg = self.bgsub.apply(frame, learningRate=self.learning_rate)
+        fg = self.bgsub.apply(frame)
+        return fg
