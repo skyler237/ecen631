@@ -75,25 +75,25 @@ class BackgrondSubtractor:
         # Set parameters
         self.bgsub.setHistory(10)                        # default = 500
         self.bgsub.setNMixtures(1)                       # default = 5
-        self.bgsub.setDetectShadows(False)               # default = True
+        self.bgsub.setDetectShadows(True)               # default = True
         self.bgsub.setBackgroundRatio(0.9)               # default = 0.9
         self.bgsub.setVarThresholdGen(16.0)              # defualt = 9.0
-        self.bgsub.setVarThreshold(90.0)                 # defualt = 16.0
+        self.bgsub.setVarThreshold(40.0)                 # defualt = 16.0
         self.bgsub.setComplexityReductionThreshold(0.05) # default = 0.05
         self.learning_rate = -1                          # default = -1
 
-        self.erode_kernel = np.ones((2,2),np.uint8)
-        self.dilate_kernel = np.ones((3,3),np.uint8)
+        self.open_kernel = np.ones((2,2),np.uint8)
+        self.close_kernel = np.ones((8,8),np.uint8)
 
         # Initialize variables
         self.prev_frame = None
 
     def get_fg(self, frame):
         fg = self.get_fg_raw(frame)
-        if len(self.erode_kernel) > 0:
-            fg = cv2.erode(fg, self.erode_kernel, iterations=1)
-        if len(self.dilate_kernel) > 0:
-            fg = cv2.dilate(fg, self.dilate_kernel, iterations=1)
+        if len(self.open_kernel) > 0:
+            fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, self.open_kernel)
+        if len(self.close_kernel) > 0:
+            fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, self.close_kernel)
         if self.display:
             cv2.imshow("Backround Subtraction", fg)
             # cv2.waitKey(1)
