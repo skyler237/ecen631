@@ -25,14 +25,18 @@ class FeatureTracker:
 
         # Create empty grayscale region of interest mask
         self.roi_mask = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
-        self.roi_pos = [0,0]
+        self.roi = (0,0,0,0)
         self.multi_image = MultiImage(2,1)
 
         # For testing:
         self.est_features = []
 
     def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
-        pass
+        if center:
+            region_x -= int(region_width/2)
+            region_y -= int(region_height/2)
+        self.roi = (region_x, region_y, region_width, region_height)
+        self.display_img = cv2.rectangle(frame, (region_x,region_y), (region_x+region_width,region_y+region_height), color=[0,0,255], thickness=2)
 
     def get_measurements(self, frame):
         pass
@@ -48,7 +52,7 @@ class FeatureTracker:
 
 
 class KLTTracker(FeatureTracker):
-    def __init__(self, max_features=1, dt=1/30.0):
+    def __init__(self, max_features=40, dt=1/30.0):
         # Inherit fram Tracker init
         super().__init__()
 
@@ -119,16 +123,12 @@ class KLTTracker(FeatureTracker):
         return meas
 
     def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
-        if center:
-            region_x -= int(region_width/2)
-            region_y -= int(region_height/2)
-        self.roi_pos = (region_x, region_y, region_width, region_height)
+        super().set_roi(frame, region_x, region_y, region_width, region_height, center)
 
-        x,y,w,h = self.roi_pos
+        x,y,w,h = self.roi
         # Blank out roi
         self.roi_mask = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
         cv2.rectangle(self.roi_mask, (x,y), (x+w,y+h), color=255, thickness=cv2.FILLED)
-        cv2.rectangle(self.display_img, (x,y), (x+w,y+h), color=[0,0,255], thickness=2)
 
         # Use background subtraction to isolate moving targets within roi
         fgmask = self.bgsub.get_fg(frame)
@@ -154,16 +154,51 @@ class MeanShiftTracker(FeatureTracker):
         super().__init__()
 
         self.initialized = False
-        self.roi_width = 0
-        self.roi_height = 0
+        self.dt = dt
+        self.roi_hist = None
+        self.roi_prev = (0,0,0,0)
+
+        # Setup the termination criteria, either 10 iteration or move by atleast 1 pt
+        self.term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 
     def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
+        super().set_roi(frame, region_x, region_y, region_width, region_height, center)
+
         if not self.initialized:
-            self.roi_width = region_width
-            self.roi_height = region_height
+            self.roi_prev = self.roi
+            col,row,w,h = self.roi
+            # Crop the image
+            roi_img = frame[row:row+h, col:col+w]
+            # Convert to HSV
+            hsv_roi = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+            # Threshold the HSV values
+            mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
+            # Compute a histogram
+            self.roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+            # Normalize the histogram
+            cv2.normalize(self.roi_hist,self.roi_hist,0,255,cv2.NORM_MINMAX)
+            self.initialized = True
 
     def get_measurements(self, frame):
-        pass
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        dst = cv2.calcBackProject([hsv],[0],self.roi_hist,[0,180],1)
+        # apply meanshift to get the new location
+        ret, new_roi = cv2.meanShift(dst, self.roi, self.term_crit)
+
+        # set_trace()
+        # compute center
+        x,y,w,h = new_roi
+        center = np.array([[int(x+w/2)],
+                           [int(y+h/2)]])
+        # compute velocity
+        x_prev, y_prev = self.roi_prev[0:2]
+
+        vel = 1.0/self.dt * np.array([[float(x - x_prev)],
+                                      [float(y - y_prev)]])
+
+        meas = np.vstack((center,vel))
+        self.roi_prev = self.roi
+        return meas
 
 
 class BGSubtractionTracker(FeatureTracker):

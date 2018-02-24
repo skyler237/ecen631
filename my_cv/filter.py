@@ -19,7 +19,7 @@ class Filter:
             self.sigma_Q = 1.0
         elif model_type == self.CONST_ACCEL:
             self.state_dim = 6
-            self.sigma_Q = 0.05
+            self.sigma_Q = 0.01
         elif model_type == self.CONST_JERK:
             self.state_dim = 8
             self.sigma_Q = 0.005
