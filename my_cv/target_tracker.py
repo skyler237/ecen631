@@ -6,7 +6,7 @@ import math
 from my_cv import cv_utils
 from my_cv.multi_image import MultiImage
 from my_cv.filter import Filter
-from my_cv.feature_tracker import KLTTracker, BGSubtractionTracker, MeanShiftTracker
+from my_cv.feature_tracker import KLTTracker, BGSubtractionTracker, CamShiftTracker
 
 ############ Main target tracker ############
 class TargetTracker:
@@ -14,7 +14,7 @@ class TargetTracker:
         dt = 1/30.0
         # Initialize tracker
         tracker_types = {"KLT": KLTTracker,
-                         "MeanShift": MeanShiftTracker,
+                         "CamShift": CamShiftTracker,
                          "BGSubtraction": BGSubtractionTracker}
         self.tracker_type = tracker_types[tracker_type]
         self.tracker = self.tracker_type(dt=dt)
@@ -27,11 +27,7 @@ class TargetTracker:
 
     def track_targets(self, frame):
         measurements = self.tracker.get_measurements(frame)
-        # Code here: Fix this problem
-        # if np.size(measurements) > 4:
         meas = self.weighted_average(measurements)
-        # else:
-            # meas = measurements
         self.filter.correct(meas)
         filtered_meas = self.filter.predict()
         # FIXME: Try skipping the filter and feeding back in the value!

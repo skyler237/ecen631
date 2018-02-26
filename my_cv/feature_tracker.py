@@ -148,7 +148,7 @@ class KLTTracker(FeatureTracker):
         self.display_img = cv2.add(frame, self.tracks_mask)
 
 
-class MeanShiftTracker(FeatureTracker):
+class CamShiftTracker(FeatureTracker):
     def __init__(self, dt=1.0/30):
         # Inherit fram Tracker init
         super().__init__()
@@ -157,11 +157,20 @@ class MeanShiftTracker(FeatureTracker):
         self.dt = dt
         self.roi_hist = None
         self.roi_prev = (0,0,0,0)
+        self.roi_width = 0
+        self.roi_height = 0
 
         # Setup the termination criteria, either 10 iteration or move by atleast 1 pt
         self.term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 
     def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
+        # Overwrite width and height with camshift values (if initialized)
+        if self.initialized:
+            region_width = self.roi_width
+            region_height = self.roi_height
+        else:
+            self.roi_width = region_width
+            self.roi_height = region_height
         super().set_roi(frame, region_x, region_y, region_width, region_height, center)
 
         if not self.initialized:
@@ -182,8 +191,12 @@ class MeanShiftTracker(FeatureTracker):
     def get_measurements(self, frame):
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         dst = cv2.calcBackProject([hsv],[0],self.roi_hist,[0,180],1)
-        # apply meanshift to get the new location
-        ret, new_roi = cv2.meanShift(dst, self.roi, self.term_crit)
+        # apply cmashift to get the new location
+        ret, new_roi = cv2.CamShift(dst, self.roi, self.term_crit)
+
+        # Grab new width and height values
+        self.roi_width = new_roi[2]
+        self.roi_height = new_roi[3]
 
         # set_trace()
         # compute center
@@ -198,7 +211,7 @@ class MeanShiftTracker(FeatureTracker):
 
         meas = np.vstack((center,vel))
         self.roi_prev = self.roi
-        return meas
+        return [meas]
 
 
 class BGSubtractionTracker(FeatureTracker):
