@@ -64,7 +64,7 @@ class FrameBuffer:
     def clear(self):
         self.buffer = []
 
-class BackgrondSubtractor:
+class BackgroundSubtractor:
     def __init__(self, display=False):
         # Class option
         self.display = display
@@ -75,7 +75,7 @@ class BackgrondSubtractor:
         # Set parameters
         self.bgsub.setHistory(10)                        # default = 500
         self.bgsub.setNMixtures(1)                       # default = 5
-        self.bgsub.setDetectShadows(True)               # default = True
+        self.bgsub.setDetectShadows(False)               # default = True
         self.bgsub.setBackgroundRatio(0.9)               # default = 0.9
         self.bgsub.setVarThresholdGen(16.0)              # defualt = 9.0
         self.bgsub.setVarThreshold(40.0)                 # defualt = 16.0

@@ -25,7 +25,7 @@ tracker = TargetTracker("CamShift")
 
 # Get region of interest
 ret, frame = cap.read()
-# tracker.select_roi(frame)
+tracker.select_roi(frame)
 
 # HSV Testing
 cv2.createTrackbar('hue min', 'HSV', 0, 255, nothing)
@@ -44,17 +44,17 @@ val_max = 255
 while True:
     ret, frame = cap.read()
     if ret == True:
-        # tracker.track_targets(frame)
-        hue_min = cv2.getTrackbarPos('hue min', 'HSV')
-        hue_max = cv2.getTrackbarPos('hue max', 'HSV')
-        sat_min = cv2.getTrackbarPos('sat min', 'HSV')
-        sat_max = cv2.getTrackbarPos('sat max', 'HSV')
-        val_min = cv2.getTrackbarPos('val min', 'HSV')
-        val_max = cv2.getTrackbarPos('val max', 'HSV')
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        hsv = cv2.inRange(hsv, (hue_min, sat_min, val_min), (hue_max, sat_max, val_max))
-
-        cv2.imshow('hsv', hsv)
+        tracker.track_targets(frame)
+        # hue_min = cv2.getTrackbarPos('hue min', 'HSV')
+        # hue_max = cv2.getTrackbarPos('hue max', 'HSV')
+        # sat_min = cv2.getTrackbarPos('sat min', 'HSV')
+        # sat_max = cv2.getTrackbarPos('sat max', 'HSV')
+        # val_min = cv2.getTrackbarPos('val min', 'HSV')
+        # val_max = cv2.getTrackbarPos('val max', 'HSV')
+        # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # hsv = cv2.inRange(hsv, (hue_min, sat_min, val_min), (hue_max, sat_max, val_max))
+        #
+        # cv2.imshow('hsv', hsv)
         cv2.waitKey(0)
 
 

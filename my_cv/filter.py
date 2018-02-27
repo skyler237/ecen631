@@ -13,13 +13,13 @@ class Filter:
         self.model_type = model_type
 
         self.meas_dim = 4
-        self.sigma_R  = 20.0
+        self.sigma_R  = 70.0
         if model_type == self.CONST_VEL:
             self.state_dim = 4
             self.sigma_Q = 1.0
         elif model_type == self.CONST_ACCEL:
             self.state_dim = 6
-            self.sigma_Q = 0.01
+            self.sigma_Q = 0.05
         elif model_type == self.CONST_JERK:
             self.state_dim = 8
             self.sigma_Q = 0.005
