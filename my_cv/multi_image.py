@@ -12,7 +12,7 @@ class MultiImage():
                 self.images[(i,j)] = []
         self.image_size = [0,0,0]
 
-    def add_image(self, img, row, col):
+    def set_image(self, img, row, col):
         img = self.get_3ch_image(img)
         self.images[(row,col)] = img
         if self.image_size == [0,0,0]:
