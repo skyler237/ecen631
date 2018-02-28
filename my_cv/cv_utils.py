@@ -64,7 +64,7 @@ class FrameBuffer:
     def clear(self):
         self.buffer = []
 
-class BackgrondSubtractor:
+class BackgroundSubtractor:
     def __init__(self, display=False):
         # Class option
         self.display = display

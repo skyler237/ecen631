@@ -6,7 +6,7 @@ import math
 from my_cv import cv_utils
 from my_cv.multi_image import MultiImage
 from my_cv.filter import Filter
-from my_cv.feature_tracker import KLTTracker, BGSubtractionTracker, MeanShiftTracker
+from my_cv.feature_tracker import KLTTracker, BGSubtractionTracker, CamShiftTracker
 
 ############ Main target tracker ############
 class TargetTracker:
@@ -14,10 +14,10 @@ class TargetTracker:
         dt = 1/30.0
         # Initialize tracker
         tracker_types = {"KLT": KLTTracker,
-                         "MeanShift": MeanShiftTracker,
+                         "CamShift": CamShiftTracker,
                          "BGSubtraction": BGSubtractionTracker}
         self.tracker_type = tracker_types[tracker_type]
-        self.tracker = self.tracker_type(max_features=40, dt=dt)
+        self.tracker = self.tracker_type(dt=dt)
         self.roi_width = 0
         self.roi_height = 0
 
@@ -27,9 +27,11 @@ class TargetTracker:
 
     def track_targets(self, frame):
         measurements = self.tracker.get_measurements(frame)
-        avg_meas = self.weighted_average(measurements)
-        self.filter.correct(avg_meas)
+        meas = self.weighted_average(measurements)
+        self.filter.correct(meas)
         filtered_meas = self.filter.predict()
+        # FIXME: Try skipping the filter and feeding back in the value!
+        # filtered_meas = meas
         region_center = np.copy([filtered_meas[0], filtered_meas[1]])
         # region_center = [int(feature_point[0][0]), int(feature_point[0][1])]
         self.tracker.set_roi(frame, *region_center, self.roi_width, self.roi_height, center=True)
