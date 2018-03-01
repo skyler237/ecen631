@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import yaml
 
 def get_gray(img, img_type='bgr'):
     if img_type == 'bgr':
@@ -29,6 +30,21 @@ def get_grid(origin, width, height, num_points):
 
 def get_random_color():
     return np.random.randint(0,255,(1,3))
+
+class CamParams:
+    def __init__(self, param_file):
+        self.params = yaml.load(open(param_file))
+        self.K = self.get_K()
+        self.width = self.params['image_width']
+        self.height = self.params['image_height']
+
+    def get_K(self):
+        camera_matrix = self.params['camera_matrix']
+        K = np.reshape(camera_matrix['data'], (camera_matrix['rows'], camera_matrix['cols']))
+        return K
+
+    def get_size(self):
+
 
 
 class FrameBuffer:
