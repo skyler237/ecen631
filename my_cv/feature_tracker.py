@@ -24,7 +24,7 @@ class FeatureTracker:
         self.display_img = np.zeros(self.default_img_size, dtype=np.uint8)
 
         # Create empty grayscale region of interest mask
-        self.roi_mask = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
+        self.roi_mask = np.ones((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)*255
         self.roi = (0,0,0,0)
         self.multi_image = MultiImage(2,1)
 
@@ -80,29 +80,37 @@ class KLTTracker(FeatureTracker):
         self.prev_gray = cv_utils.get_gray(frame)
         self.initialized = True
 
-    def get_measurements(self, frame):
+    def get_feature_matches(self, frame):
         if not self.initialized:
             self.initialize_features(frame)
 
         gray = cv_utils.get_gray(frame)
 
         # Select good features in the roi
-        self.features = cv2.goodFeaturesToTrack(gray, mask=self.roi_mask, **self.feature_params)
+        features = cv2.goodFeaturesToTrack(self.prev_gray, mask=self.roi_mask, **self.feature_params)
+
+        # Calculate optical flow
+        new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, features, None, **self.lk_params)
+
+        # Update previous data
+        self.prev_gray = gray.copy()
+
+        if new_features is None:
+            return [None, None]
+        else:
+            # Throw away bad points
+            new_features = new_features[status==1]
+            features = features[status==1]
+            return [features, new_features]
+
+    def get_measurements(self, frame):
+        self.features, self.new_features = self.get_feature_matches(frame)
         if self.features is None:
             self.features = []
             self.new_features = []
             # Update display
             self.update_display(frame)
-            # Update previous data
-            self.prev_gray = gray.copy()
             return self.prev_meas
-
-        # Calculate optical flow
-        self.new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.features, None, **self.lk_params)
-
-        # Throw away bad points
-        self.new_features = self.new_features[status==1]
-        self.features = self.features[status==1]
 
         # Calculate optical flow velocity
         u = (self.new_features - self.features)/self.dt
@@ -111,13 +119,8 @@ class KLTTracker(FeatureTracker):
         # Update display
         self.update_display(frame)
 
-
-        # Update previous data
-        self.prev_gray = gray.copy()
-        self.features = self.new_features.reshape(-1,2,1)
-
         # Concatenate positions and velocities to create measurements
-        meas = np.hstack((self.features,u))
+        meas = np.hstack((self.new_features.reshape(-1,2,1),u))
 
         self.prev_meas = meas
 
