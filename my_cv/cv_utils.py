@@ -43,9 +43,6 @@ class CamParams:
         K = np.reshape(camera_matrix['data'], (camera_matrix['rows'], camera_matrix['cols']))
         return K
 
-    def get_size(self):
-
-
 
 class FrameBuffer:
     def __init__(self, buffer_size):
