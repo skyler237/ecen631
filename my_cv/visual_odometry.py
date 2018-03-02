@@ -1,10 +1,12 @@
+from IPython.core.debugger import set_trace
+from my_cv.cv_utils import CamParams
+from my_cv.feature_tracker import KLTTracker
 import numpy as np
+import transforms3d
 import cv2
 import math
 import yaml
 
-from my_cv.cv_utils import CamParams
-from my_cv.feature_tracker import KLTTracker
 
 class VO:
     def __init__(self, cam_param_file=None):
@@ -15,7 +17,7 @@ class VO:
             self.f = 512/2
             self.K = np.array([[self.f, 0.0,    512/2],
                                [0.0,    self.f, 512/2],
-                               [0.0,    0.0     1.0]])
+                               [0.0,    0.0,    1.0]])
         else:
             # Extract camera params
             cam_params = CamParams(cam_param_file)
@@ -26,20 +28,23 @@ class VO:
 
 
         # Initialize KLT tracker
-        self.klt = KLTTracker(max_features=100, dt=1.0/30.0)
+        self.klt = KLTTracker(max_features=300, dt=1.0/30.0)
 
 
     def compute_RT(self, frame):
         # Get feature matches
-        prev_features, features = self.klt.get_feature_matches(frame)
+        # REVIEW: Are these flipped? why?
+        features, prev_features = self.klt.get_feature_matches(frame)
 
         # REVIEW: How much do I need to tune RANSAC? Also, do I want to mask this?
-        cv2.findEssentialMat()
         E, mask = cv2.findEssentialMat(prev_features, features, self.K, method=cv2.RANSAC)
-        R, T = cv2.recoverPose(E, prev_features, features, self.K, mask=mask)
+        ret, R, T, mask = cv2.recoverPose(E, prev_features, features, self.K, mask=mask)
+
+        euler = np.degrees(transforms3d.euler.mat2euler(R, 'rxyz'))
 
         print("============= E =============:\n{0}".format(E))
         print("============= R =============:\n{0}".format(R))
+        print("============= Euler =========:\n{0}".format(euler))
         print("============= T =============:\n{0}".format(T))
 
         return R, T
