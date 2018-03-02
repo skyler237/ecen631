@@ -7,8 +7,6 @@ from pygame.locals import *
 from Holodeck import Holodeck, Agents
 from Holodeck.Environments import HolodeckEnvironment
 from Holodeck.Sensors import Sensors
-# from uav_state_plotter import Plotter
-from state_plotter.state_plotter import Plotter
 from myholodeck.PID import PID
 
 ### Command key mappings ###
@@ -103,7 +101,6 @@ class UAVSim():
         self.velocity_sensor = np.zeros((3,1))
 
         # Default system variables
-        self.plotting_states    = False
         self.paused             = False
         self.manual_control     = True
 
@@ -111,30 +108,6 @@ class UAVSim():
         print("Initializing {0} world".format(world))
         self.env = Holodeck.make(world)
         self.pressed = {PAUSE: False, MANUAL_TOGGLE: False}
-
-
-    ######## Plotting Functions ########
-    def init_plots(self, plotting_freq):
-        self.plotting_states = True
-        self.plotter = Plotter(plotting_freq)
-        # Define plot names
-        plots = ['x',                   'y',                    ['z', 'z_c'],
-                 ['xdot', 'xdot_c'],    ['ydot', 'ydot_c'],     'zdot',
-                 ['phi', 'phi_c'],      ['theta', 'theta_c'],   ['psi', 'psi_c'],
-                 'p',                   'q',                    ['r', 'r_c'],
-                 'ax',                  'ay',                   'az'
-                 ]
-        # Add plots to the window
-        for p in plots:
-            self.plotter.add_plot(p)
-
-        # Define state vectors for simpler input
-        self.plotter.define_state_vector("position", ['x', 'y', 'z'])
-        self.plotter.define_state_vector("velocity", ['xdot', 'ydot', 'zdot'])
-        self.plotter.define_state_vector("orientation", ['phi', 'theta', 'psi'])
-        self.plotter.define_state_vector("imu", ['ax', 'ay', 'az', 'p', 'q', 'r'])
-        self.plotter.define_state_vector("command", ['phi_c', 'theta_c', 'r_c', 'z_c'])
-        self.plotter.define_state_vector("vel_command", ['xdot_c', 'ydot_c', 'psi_c'])
 
 
     ######## Teleop Functions ########
@@ -351,6 +324,15 @@ class UAVSim():
         euler = transforms3d.euler.mat2euler(R, 'rxyz')
         return euler
 
+    def get_sim_command(self):
+        return self.command
+
+    def get_vel_command(self):
+        return np.array([self.vx_c, self.vy_c, self.yaw_c])
+
+    def get_sim_time(self):
+        return self.sim_step*self.dt
+
     def step_sim(self):
         if self.using_teleop:
             self.process_teleop()
@@ -361,15 +343,6 @@ class UAVSim():
             self.sim_step += 1
             self.sim_state, self.sim_reward, self.sim_terminal, self.sim_info = self.env.step(self.command)
             self.extract_sensor_data() # Get and store sensor data from state
-            if self.plotting_states:
-                t = self.sim_step*self.dt
-                self.plotter.add_vector_measurement("position", self.get_position(), t)
-                self.plotter.add_vector_measurement("velocity", self.get_body_velocity(), t)
-                self.plotter.add_vector_measurement("orientation", self.get_euler(), t)
-                self.plotter.add_vector_measurement("imu", self.get_imu(), t)
-                self.plotter.add_vector_measurement("command", self.command, t)
-                self.plotter.add_vector_measurement("vel_command", [self.vx_c, self.vy_c, self.yaw_c], t)
-                self.plotter.update_plots()
 
     def reset_sim(self):
         # Re-initialize commands

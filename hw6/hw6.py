@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 from IPython.core.debugger import set_trace
 from my_cv.visual_odometry import VO
+from myholodeck.holodeck_plotter import CommandsPlotter
+from myholodeck.uav_sim import UAVSim
 import cv2
 import numpy as np
 import math
+
+
+
+
+urban_world = 'UrbanCity'
+forest_world = 'EuropeanForest'
+redwood_world = 'RedwoodForest'
 
 
 camera_param_file = '/home/skyler/school/ecen631/camera_calibration/src/my_camera_calibration/param/webcam_intrinsic_parameters.yaml'
@@ -42,11 +51,11 @@ def visual_odometry_hw():
     else:
         uav_sim = UAVSim(redwood_world)
         uav_sim.init_teleop()
-        uav_sim.init_plots(plotting_freq=10)
         uav_sim.velocity_teleop = True
 
         visual_odom = VO()
-        plotter = Plotter()
+        plotter = CommandsPlotter(plotting_freq=10)
+
         dt = 1.0/30.0
 
 
@@ -61,6 +70,7 @@ def visual_odometry_hw():
             # Run holodeck
             uav_sim.step_sim()
             cam = uav_sim.get_camera()
+            plotter.update_sim_data(uav_sim)
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27:
