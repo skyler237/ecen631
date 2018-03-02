@@ -28,22 +28,47 @@ def onClick(event, x, y, flags, param):
 def nothing():
     pass
 
-cap = cv2.VideoCapture(0)
+def visual_odometry_hw():
+    using_webcam = False
 
-cv2.namedWindow("Webcam")
-cv2.setMouseCallback("Webcam", onClick)
+    # System setup
+    if using_webcam:
+        cap = cv2.VideoCapture(0)
+        cv2.namedWindow("Webcam")
+        cv2.setMouseCallback("Webcam", onClick)
+        # Get region of interest
+        ret, frame_prev = cap.read()
+        visual_odom = VO(camera_param_file)
+    else:
+        uav_sim = UAVSim(redwood_world)
+        uav_sim.init_teleop()
+        uav_sim.init_plots(plotting_freq=10)
+        uav_sim.velocity_teleop = True
 
-# Get region of interest
-ret, frame_prev = cap.read()
+        visual_odom = VO()
+        plotter = Plotter()
+        dt = 1.0/30.0
 
-visual_odom = VO(camera_param_file)
 
-while True:
-    ret, frame = cap.read()
-    if ret == True:
-        cv2.imshow("Webcam", frame)
-        cv2.imshow("Prev Frame", frame_prev)
+    while True:
+        if using_webcam:
+            # Process webcam frame
+            ret, frame = cap.read()
+            if ret == True:
+                cv2.imshow("Webcam", frame)
+                cv2.imshow("Prev Frame", frame_prev)
+        else:
+            # Run holodeck
+            uav_sim.step_sim()
+            cam = uav_sim.get_camera()
 
-    key = cv2.waitKey(1) & 0xFF
-    if key == 27:
-        break
+        key = cv2.waitKey(1) & 0xFF
+        if key == 27:
+            break
+
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    visual_odometry_hw()
+    print("Finished")

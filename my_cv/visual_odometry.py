@@ -42,9 +42,4 @@ class VO:
 
         euler = np.degrees(transforms3d.euler.mat2euler(R, 'rxyz'))
 
-        print("============= E =============:\n{0}".format(E))
-        print("============= R =============:\n{0}".format(R))
-        print("============= Euler =========:\n{0}".format(euler))
-        print("============= T =============:\n{0}".format(T))
-
         return R, T
