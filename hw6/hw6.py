@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from IPython.core.debugger import set_trace
 from my_cv.visual_odometry import VO
-from myholodeck.holodeck_plotter import CommandsPlotter
+from myholodeck.holodeck_plotter import OdometryPlotter
 from myholodeck.uav_sim import UAVSim
 import cv2
 import numpy as np
 import math
+import transforms3d
 
 
 
@@ -30,7 +31,10 @@ def onClick(event, x, y, flags, param):
             R = cv2.getRotationMatrix2D((x,y), theta, 1.0)
             rows, cols, ch = frame.shape
             rot_frame = cv2.warpAffine(frame, R, (cols, rows))
-            visual_odom.compute_RT(rot_frame)
+
+            R, T = visual_odom.compute_RT(rot_frame)
+            euler = transforms3d.mat2euler(R, 'rxyz')
+            print("T={0}, euler={1}".format(T, euler))
             # Update previous frame
             frame_prev = rot_frame
 
@@ -49,14 +53,14 @@ def visual_odometry_hw():
         ret, frame_prev = cap.read()
         visual_odom = VO(camera_param_file)
     else:
-        uav_sim = UAVSim(redwood_world)
+        uav_sim = UAVSim(forest_world)
         uav_sim.init_teleop()
         uav_sim.velocity_teleop = True
+        dt = uav_sim.dt
 
         visual_odom = VO()
-        plotter = CommandsPlotter(plotting_freq=10)
+        plotter = OdometryPlotter(plotting_freq=1)
 
-        dt = 1.0/30.0
 
 
     while True:
@@ -70,9 +74,30 @@ def visual_odometry_hw():
             # Run holodeck
             uav_sim.step_sim()
             cam = uav_sim.get_camera()
-            plotter.update_sim_data(uav_sim)
+            body_vel = uav_sim.get_body_velocity()
+            R = uav_sim.get_orientation()
+            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, dt, R_truth=R)
+            euler = transforms3d.euler.mat2euler(Rhat, 'rxyz')
+            plotter.update_sim_data(uav_sim, phat, euler)
+            cv2.imshow("Holodeck", cam)
 
         key = cv2.waitKey(1) & 0xFF
+        if key == ord('r'):
+            frame = np.copy(cam)
+            # Process frame to get R,T difference
+            visual_odom.compute_RT(frame)
+            # Manually rotate to test rotation
+            theta = 10
+            R = cv2.getRotationMatrix2D((0,0), theta, 1.0)
+            rows, cols, ch = frame.shape
+            rot_frame = cv2.warpAffine(frame, R, (cols, rows))
+
+            R, T = visual_odom.compute_RT(rot_frame)
+            euler = transforms3d.euler.mat2euler(R, 'rxyz')
+            print("T={0}, euler={1}".format(T, np.degrees(euler)))
+            cv2.imshow("frame", frame)
+            cv2.imshow("rotated frame", rot_frame)
+
         if key == 27:
             break
 

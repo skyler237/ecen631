@@ -13,7 +13,7 @@ class FeatureTracker:
     '''
     def __init__(self):
         # Default image parameters
-        self.default_img_size = (480,640,3)
+        self.default_img_size = (512,512,3)
         self.default_img_type = 'bgr'
 
         self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]), np.uint8)
@@ -59,9 +59,9 @@ class KLTTracker(FeatureTracker):
 
         # Initialize parameters
         self.feature_params = dict( maxCorners = max_features,
-                       qualityLevel = 0.3,
-                       minDistance = 7,
-                       blockSize = 7 )
+                       qualityLevel = 0.2,
+                       minDistance = 9,
+                       blockSize = 5 )
 
         self.lk_params = dict( winSize  = (15,15),
                   maxLevel = 2,
@@ -77,14 +77,14 @@ class KLTTracker(FeatureTracker):
         self.bgsub = cv_utils.BackgroundSubtractor(display=True)
 
     def initialize_features(self, frame):
-        self.prev_gray = cv_utils.get_gray(frame)
+        self.prev_gray = cv_utils.get_gray(frame, self.default_img_type)
         self.initialized = True
 
-    def get_feature_matches(self, frame):
+    def get_feature_matches(self, frame, img_type='bgr'):
         if not self.initialized:
             self.initialize_features(frame)
 
-        gray = cv_utils.get_gray(frame)
+        gray = cv_utils.get_gray(frame, self.default_img_type)
 
         # Select good features in the roi
         features = cv2.goodFeaturesToTrack(self.prev_gray, mask=self.roi_mask, **self.feature_params)

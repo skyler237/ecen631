@@ -41,7 +41,7 @@ class HolodeckPlotter:
         self.plotter.define_input_vector("imu", ['ax', 'ay', 'az', 'p', 'q', 'r'])
         pass
 
-    def update_plot_data(self, uav_sim):
+    def update_sim_data(self, uav_sim):
         self.t = uav_sim.get_sim_time()
         self.plotter.add_vector_measurement("position",     uav_sim.get_position(), self.t)
         self.plotter.add_vector_measurement("velocity",     uav_sim.get_body_velocity(), self.t)
