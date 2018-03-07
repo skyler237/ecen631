@@ -31,6 +31,14 @@ def get_grid(origin, width, height, num_points):
 def get_random_color():
     return np.random.randint(0,255,(1,3))
 
+def display_features(frame, features):
+    frame = np.copy(frame)
+    for i,(feat) in enumerate(features):
+        a,b = feat.ravel()
+        frame = cv2.circle(frame,(a,b),2,(0,0,255),-1)
+    cv2.imshow('Features', frame)
+    cv2.waitKey(1)
+
 class CamParams:
     def __init__(self, param_file):
         self.params = yaml.load(open(param_file))
