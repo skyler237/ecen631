@@ -316,6 +316,12 @@ class UAVSim():
         self.imu_sensor[5] *= -1.0 # Yaw output seems to be backwards
         return self.imu_sensor
 
+    def get_gyro(self):
+        return self.get_imu()[3:6]
+
+    def get_accel(self):
+        return self.get_imu[0:3]
+
     def get_orientation(self):
         return self.orientation_sensor
 
