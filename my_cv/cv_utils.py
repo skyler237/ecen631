@@ -31,11 +31,15 @@ def get_grid(origin, width, height, num_points):
 def get_random_color():
     return np.random.randint(0,255,(1,3))
 
-def display_features(frame, features):
-    frame = np.copy(frame)
+def draw_features(img, features, size=2, color=(0,0,255)):
     for i,(feat) in enumerate(features):
         a,b = feat.ravel()
-        frame = cv2.circle(frame,(a,b),2,(0,0,255),-1)
+        img = cv2.circle(img,(a,b),size,color,-1)
+    return img
+
+def display_features(frame, features):
+    frame = np.copy(frame)
+    frame = draw_features(frame, features)
     cv2.imshow('Features', frame)
     cv2.waitKey(1)
 
