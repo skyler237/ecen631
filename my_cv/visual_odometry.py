@@ -27,14 +27,16 @@ class VO:
             self.f = (self.K[0][0] + self.K[1][1])/2.0 # Take the average of fx and fy
 
         # RANSAC params
-        self.ransac_thresh = 1.0
-        self.ransac_prob = 0.999
+        self.ransac_thresh = 2.0
+        self.ransac_prob = 0.9
 
         # Other params
         self.min_inliers = 50
+        self.omega_thresh = math.radians(2.0)
+        self.feature_motion_threshold = 1.0 #px
 
         # Initialize KLT tracker
-        self.klt = KLTTracker(max_features=4000, dt=1.0/30.0)
+        self.klt = KLTTracker(max_features=4000, min_features=1500, dt=1.0/30.0)
         self.klt.default_img_size = self.img_size
         self.klt.default_img_type = self.img_type
 
@@ -44,9 +46,9 @@ class VO:
 
         self.pose = self.construct_pose_matrix(self.Rhat, self.phat)
 
-        self.R_cam2body = np.array([[0., 0., 1.],
-                                    [1., 0., 0.],
-                                    [0., -1., 0.]])
+        self.R_cam2body = np.array([[0.,  0.,  1.],
+                                    [1.,  0.,  0.],
+                                    [0., -1.,  0.]])
         # # FIXME: Just for testing
         # self.R_cam2body = np.eye(3)
 
@@ -54,14 +56,24 @@ class VO:
     def compute_RT(self, frame):
         # Get feature matches
         # REVIEW: Are these flipped? why?
-        features, prev_features = self.klt.get_feature_matches(frame, self.img_type)
+        features, prev_features = self.klt.get_feature_matches(frame, self.img_type, motion_thresh=self.feature_motion_threshold)
+
+        # # Remove features that aren't moving enough
+        # is_moving = [np.linalg.norm(v) > self.feature_motion_threshold for v in (features - prev_features)]
+        # features = features[is_moving]
+        # prev_features = prev_features[is_moving]
+
         display_features(frame, features)
+
+        if len(features) < self.min_inliers:
+            # print("Not enough inliers ({0} < {1})".format(len(features), self.min_inliers))
+            return None, None
 
         E, mask = cv2.findEssentialMat(prev_features, features, self.K,
                                         method=cv2.RANSAC, threshold=self.ransac_thresh, prob=self.ransac_prob)
         inliers = np.sum(mask)
-        if inliers <= self.min_inliers:
-            print("Not enough inliers ({0} < {1})".format(inliers, self.min_inliers))
+        if inliers < self.min_inliers:
+            # print("Not enough inliers ({0} < {1})".format(inliers, self.min_inliers))
             return None, None
         ret, R, T, mask = cv2.recoverPose(E, prev_features, features, self.K, mask=mask)
 
@@ -69,12 +81,18 @@ class VO:
 
         return R, T
 
-    def estimate_odometry(self, frame, body_vel, dt, R_truth=None):
+    def estimate_odometry(self, frame, body_vel, omega, dt, R_truth=None):
         # Get relative transformation
         R_cam, T_cam = self.compute_RT(frame)
 
         # Check if the pose recovery was successful
         if R_cam is not None:
+            # check the rotation
+            if np.max(abs(omega)) < self.omega_thresh:
+                # Skip estimation if omega is too small
+                # print("Skipping rotation estimation. Omega too small \n({0} < {1})".format(np.degrees(omega), math.degrees(self.omega_thresh)))
+                R_cam = np.eye(3)
+
             # Rotate both into body frame
             R_body = np.matmul(self.R_cam2body, R_cam)
             T_body = np.matmul(self.R_cam2body, T_cam)
@@ -91,6 +109,10 @@ class VO:
 
             # Update pose
             self.pose = np.matmul(self.pose, C_body)
+
+            # FIXME: For testing translation
+            if R_truth is not None:
+                self.pose[0:3,0:3] = R_truth
 
             # # Rotate T into the world frame
             # if R_truth is not None:
