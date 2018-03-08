@@ -32,8 +32,9 @@ class VO:
 
         # Other params
         self.min_inliers = 50
-        self.omega_thresh = math.radians(2.0)
-        self.feature_motion_threshold = 1.0 #px
+        self.omega_thresh = math.radians(0.2)
+        self.feature_motion_threshold = 1.5 #px
+        self.euler_threshold = math.radians(20.0)
 
         # Initialize KLT tracker
         self.klt = KLTTracker(max_features=4000, min_features=1500, dt=1.0/30.0)
@@ -48,7 +49,7 @@ class VO:
 
         self.R_cam2body = np.array([[0.,  0.,  1.],
                                     [1.,  0.,  0.],
-                                    [0., -1.,  0.]])
+                                    [0.,  1.,  0.]])
         # # FIXME: Just for testing
         # self.R_cam2body = np.eye(3)
 
@@ -57,12 +58,6 @@ class VO:
         # Get feature matches
         # REVIEW: Are these flipped? why?
         features, prev_features = self.klt.get_feature_matches(frame, self.img_type, motion_thresh=self.feature_motion_threshold)
-
-        # # Remove features that aren't moving enough
-        # is_moving = [np.linalg.norm(v) > self.feature_motion_threshold for v in (features - prev_features)]
-        # features = features[is_moving]
-        # prev_features = prev_features[is_moving]
-
         display_features(frame, features)
 
         if len(features) < self.min_inliers:
@@ -87,28 +82,34 @@ class VO:
 
         # Check if the pose recovery was successful
         if R_cam is not None:
-            # check the rotation
-            if np.max(abs(omega)) < self.omega_thresh:
-                # Skip estimation if omega is too small
-                # print("Skipping rotation estimation. Omega too small \n({0} < {1})".format(np.degrees(omega), math.degrees(self.omega_thresh)))
-                R_cam = np.eye(3)
+            # Check for spikes
+            euler = np.array(transforms3d.euler.mat2euler(R_cam, 'rxyz'))
+            if np.max(np.abs(euler)) > self.euler_threshold:
+                # Skip this iteration
+                return self.Rhat, self.phat
+
+            # Zero out axes that have too little rotation
+            euler[np.abs(euler) < self.omega_thresh] = 0.0
+            R_cam = transforms3d.euler.euler2mat(*euler)
 
             # Rotate both into body frame
-            R_body = np.matmul(self.R_cam2body, R_cam)
-            T_body = np.matmul(self.R_cam2body, T_cam)
+            R_body = np.dot(self.R_cam2body, R_cam).dot(self.R_cam2body.transpose())
+            T_body = np.dot(self.R_cam2body, T_cam)
 
             # Scale T using body_velocity
             T_scaled = T_body*np.linalg.norm(body_vel)*dt
-            R_scaled = R_body
-            # same_sign = np.equal(np.sign(T_scaled), np.sign(body_vel))
-            # # Check to see if the algorithm returned the wrong sign on T
-            # if np.sum(same_sign) < 3:
-            #     T_scaled *= -1
 
-            C_body = self.construct_pose_matrix(R_scaled, T_scaled)
+            C_body = self.construct_pose_matrix(R_body, T_scaled)
 
             # Update pose
             self.pose = np.matmul(self.pose, C_body)
+            print("T_cam = {0}".format(T_cam))
+            print("T_body = {0}".format(T_body))
+            print("T_scaled = {0}".format(T_scaled))
+
+
+            # # FIXME: Just for testing!
+            # self.pose = self.construct_pose_matrix(R_body, T_body)
 
             # FIXME: For testing translation
             if R_truth is not None:
@@ -127,8 +128,10 @@ class VO:
             # self.Rhat = np.matmul(R_body, self.Rhat)
 
         self.Rhat, self.phat = self.decompose_pose_matrix(self.pose)
+        print("phat = {0}".format(self.phat))
         # return self.Rhat, self.phat
         return self.Rhat, self.phat
+        # return R_cam, T_cam
         # return R_body, T_scaled
 
     def construct_pose_matrix(self, R, T):

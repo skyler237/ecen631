@@ -77,9 +77,14 @@ def visual_odometry_hw():
             body_vel = uav_sim.get_body_velocity()
             omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
-            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, R_truth=R)
-            euler = transforms3d.euler.mat2euler(Rhat, 'rxyz')
-            plotter.update_sim_data(uav_sim, phat, euler)
+            # Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, R_truth=R) # Use true R
+            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt)
+            euler = np.array(transforms3d.euler.mat2euler(Rhat, 'rxyz'))
+            # Make appropriate changes for weird Holodeck frames
+            xyz = np.copy(phat)
+            xyz[2] *= -1.0
+            euler[2] *= -1.0
+            plotter.update_sim_data(uav_sim, xyz, euler)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('r'):
