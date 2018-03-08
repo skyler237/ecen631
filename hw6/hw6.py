@@ -75,11 +75,11 @@ def visual_odometry_hw():
             uav_sim.step_sim()
             cam = uav_sim.get_camera()
             body_vel = uav_sim.get_body_velocity()
+            omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
-            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, dt, R_truth=R)
+            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, R_truth=R)
             euler = transforms3d.euler.mat2euler(Rhat, 'rxyz')
             plotter.update_sim_data(uav_sim, phat, euler)
-            cv2.imshow("Holodeck", cam)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('r'):
