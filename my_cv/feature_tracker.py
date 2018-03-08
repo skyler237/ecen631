@@ -53,15 +53,18 @@ class FeatureTracker:
 
 
 class KLTTracker(FeatureTracker):
-    def __init__(self, max_features=40, dt=1/30.0):
+    def __init__(self, max_features=40, min_features=1, dt=1/30.0):
         # Inherit fram Tracker init
         super().__init__()
 
         # Initialize parameters
+        self.min_features = min_features
+        self.max_features = max_features
+        self.min_distance = 6
         self.feature_params = dict( maxCorners = max_features,
-                       qualityLevel = 0.2,
-                       minDistance = 9,
-                       blockSize = 5 )
+                       qualityLevel = 0.1,
+                       minDistance = self.min_distance,
+                       blockSize = self.min_distance )
 
         self.lk_params = dict( winSize  = (15,15),
                   maxLevel = 2,
@@ -71,6 +74,10 @@ class KLTTracker(FeatureTracker):
         self.dt = dt
         self.prev_meas = np.zeros((1,4,1))
         self.colors = np.random.randint(0,255,(max_features,3))
+        self.features = np.array([])
+        self.new_features = np.array([])
+        self.feature_matching_iterations = 5
+        self.feature_mask = np.ones(self.default_img_size[0:2], np.uint8)*255
 
         # Background subtraction
         self.prev_bg = np.zeros((self.default_img_size[0], self.default_img_size[1]), np.uint8)
@@ -80,40 +87,56 @@ class KLTTracker(FeatureTracker):
         self.prev_gray = cv_utils.get_gray(frame, self.default_img_type)
         self.initialized = True
 
-    def get_feature_matches(self, frame, img_type='bgr'):
+    def get_feature_matches(self, frame, img_type='bgr', motion_thresh=0.0):
         if not self.initialized:
             self.initialize_features(frame)
 
         gray = cv_utils.get_gray(frame, self.default_img_type)
+        self.features = np.copy(self.new_features)
 
-        # Select good features in the roi
-        features = cv2.goodFeaturesToTrack(self.prev_gray, mask=self.roi_mask, **self.feature_params)
+        # Add good features
+        for i in range(0,self.feature_matching_iterations):
+            if len(self.features) < self.min_features:
+                mask = cv2.add(self.roi_mask, self.feature_mask)
+                features = cv2.goodFeaturesToTrack(self.prev_gray, mask=mask, **self.feature_params)
+                self.feature_mask = cv_utils.draw_features(self.feature_mask, features, size=self.min_distance, color=(0,0,0))
+                if len(self.features) == 0:
+                    self.features = features
+                else:
+                    self.features = np.vstack((self.features, features)).reshape(-1,1,2)
+                print("Added {0} features. Total={1}".format(len(features), len(self.features)))
+
 
         # Calculate optical flow
-        new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, features, None, **self.lk_params)
+        self.new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.features, None, **self.lk_params)
+
+        # Threshold points that aren't moving enough
+        meets_motion_thresh = [[np.linalg.norm(v) >= motion_thresh] for v in (self.new_features - self.features)]
+        status = np.logical_and(status, meets_motion_thresh)
 
         # Update previous data
         self.prev_gray = gray.copy()
 
-        if new_features is None:
+        if self.new_features is None:
             return [None, None]
         else:
-            # Throw away bad points
-            new_features = new_features[status==1]
-            features = features[status==1]
-            return [features, new_features]
+            # Throw away bad points and add good ones to existing set
+            self.feature_mask = cv_utils.draw_features(self.feature_mask, self.features[status==0], size=self.min_distance, color=(255,255,255))
+            self.features = self.features[status==1].reshape(-1,1,2)
+            self.new_features = self.new_features[status==1].reshape(-1,1,2)
+            return [self.features, self.new_features]
 
     def get_measurements(self, frame):
-        self.features, self.new_features = self.get_feature_matches(frame)
-        if self.features is None:
-            self.features = []
-            self.new_features = []
+        features, new_features = self.get_feature_matches(frame)
+        if features is None:
+            features = []
+            new_features = []
             # Update display
             self.update_display(frame)
             return self.prev_meas
 
         # Calculate optical flow velocity
-        u = (self.new_features - self.features)/self.dt
+        u = (new_features - features)/self.dt
         u = np.reshape(u, (len(u), 2,1))
 
         # Update display
