@@ -202,12 +202,12 @@ class UAVSim():
                 self.teleop_text = "VEL_BACKWARD"
             # z-rotation
             if keys[YAW_LEFT]:
-                self.yaw_c += (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                self.yaw_c += self.yawrate_min*self.dt
                 if self.yaw_c > math.pi:
                     self.yaw_c -= 2*math.pi
                 self.teleop_text = "YAW_LEFT"
             if keys[YAW_RIGHT]:
-                self.yaw_c -= (self.yawrate_min + (self.yawrate_max - self.yawrate_min)*self.speed_val)*self.dt
+                self.yaw_c -= self.yawrate_min*self.dt
                 if self.yaw_c < -math.pi:
                     self.yaw_c += 2*math.pi
                 self.teleop_text = "YAW_RIGHT"
