@@ -82,19 +82,20 @@ class VO:
 
         # Check if the pose recovery was successful
         if R_cam is not None:
+            # Rotate both into body frame
+            R_body = np.dot(self.R_cam2body, R_cam).dot(self.R_cam2body.transpose())
+            T_body = np.dot(self.R_cam2body, T_cam)
+
             # Check for spikes
-            euler = np.array(transforms3d.euler.mat2euler(R_cam, 'rxyz'))
+            euler = np.array(transforms3d.euler.mat2euler(R_body, 'rxyz'))
             if np.max(np.abs(euler)) > self.euler_threshold:
                 # Skip this iteration
                 return self.Rhat, self.phat
 
             # Zero out axes that have too little rotation
             euler[np.abs(euler) < self.omega_thresh] = 0.0
-            R_cam = transforms3d.euler.euler2mat(*euler)
-
-            # Rotate both into body frame
-            R_body = np.dot(self.R_cam2body, R_cam).dot(self.R_cam2body.transpose())
-            T_body = np.dot(self.R_cam2body, T_cam)
+            euler[np.abs(omega) < self.omega_thresh] = 0.0
+            R_body = transforms3d.euler.euler2mat(*euler)
 
             # Scale T using body_velocity
             T_scaled = T_body*np.linalg.norm(body_vel)*dt
