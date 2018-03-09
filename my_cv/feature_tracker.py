@@ -13,7 +13,8 @@ class FeatureTracker:
     '''
     def __init__(self):
         # Default image parameters
-        self.default_img_size = (512,512,3)
+        # self.default_img_size = (512,512,3)
+        self.default_img_size = (480,640,3)
         self.default_img_type = 'bgr'
 
         self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]), np.uint8)
