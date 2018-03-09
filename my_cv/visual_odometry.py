@@ -32,9 +32,9 @@ class VO:
 
         # Other params
         self.min_inliers = 50
-        self.omega_thresh = math.radians(0.2)
-        self.feature_motion_threshold = 1.5 #px
-        self.euler_threshold = math.radians(20.0)
+        self.omega_thresh = math.radians(0.5)
+        self.feature_motion_threshold = 1.75 #px
+        self.euler_threshold = math.radians(10.0)
 
         # Initialize KLT tracker
         self.klt = KLTTracker(max_features=4000, min_features=1500, dt=1.0/30.0)
