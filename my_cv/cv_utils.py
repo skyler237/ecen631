@@ -34,7 +34,7 @@ def get_random_color():
 def draw_features(img, features, size=2, color=(0,0,255)):
     for i,(feat) in enumerate(features):
         a,b = feat.ravel()
-        img = cv2.circle(img,(a,b),size,color,-1)
+        img = cv2.circle(img,(int(a),int(b)),size,color,-1)
     return img
 
 def display_features(frame, features):

@@ -9,7 +9,7 @@ import yaml
 
 
 class VO:
-    def __init__(self, cam_param_file=None):
+    def __init__(self, cam_param_file=None, process_nth_frame=1):
         if cam_param_file is None:
             # Default camera parameters -- Holodeck
             self.img_size = (512,512,4)
@@ -27,23 +27,25 @@ class VO:
             self.f = (self.K[0][0] + self.K[1][1])/2.0 # Take the average of fx and fy
 
         # RANSAC params
-        self.ransac_thresh = 2.0
-        self.ransac_prob = 0.9
+        self.ransac_thresh = 0.1
+        self.ransac_prob = 0.999
 
         # Other params
         self.min_inliers = 50
-        self.omega_thresh = math.radians(0.5)
+        self.omega_thresh = math.radians(0.2)
         self.feature_motion_threshold = 1.75 #px
         self.euler_threshold = math.radians(10.0)
+        self.process_nth_frame = process_nth_frame
 
         # Initialize KLT tracker
-        self.klt = KLTTracker(max_features=4000, min_features=1500, dt=1.0/30.0)
+        self.klt = KLTTracker(max_features=5000, min_features=2000, dt=1.0/30.0, img_size=self.img_size, img_type=self.img_type)
         self.klt.default_img_size = self.img_size
         self.klt.default_img_type = self.img_type
 
         # Initialize state
         self.phat = np.array([0., 0., 0.])  # estimated position
         self.Rhat = np.eye(3)               # estimated rotation (matrix)
+        self.frame_cnt = 0
 
         self.pose = self.construct_pose_matrix(self.Rhat, self.phat)
 
@@ -54,11 +56,12 @@ class VO:
         # self.R_cam2body = np.eye(3)
 
 
-    def compute_RT(self, frame):
+    def compute_RT(self, frame, show_features=False):
         # Get feature matches
         # REVIEW: Are these flipped? why?
         features, prev_features = self.klt.get_feature_matches(frame, self.img_type, motion_thresh=self.feature_motion_threshold)
-        display_features(frame, features)
+        if show_features:
+            display_features(frame, features)
 
         if len(features) < self.min_inliers:
             # print("Not enough inliers ({0} < {1})".format(len(features), self.min_inliers))
@@ -76,9 +79,13 @@ class VO:
 
         return R, T
 
-    def estimate_odometry(self, frame, body_vel, omega, dt, R_truth=None):
+    def estimate_odometry(self, frame, body_vel, omega, dt, R_truth=None, show_features=False):
+        self.frame_cnt += 1
+        if self.frame_cnt % self.process_nth_frame != 0:
+            return self.Rhat, self.phat
+
         # Get relative transformation
-        R_cam, T_cam = self.compute_RT(frame)
+        R_cam, T_cam = self.compute_RT(frame, show_features=show_features)
 
         # Check if the pose recovery was successful
         if R_cam is not None:
@@ -94,11 +101,11 @@ class VO:
 
             # Zero out axes that have too little rotation
             euler[np.abs(euler) < self.omega_thresh] = 0.0
-            euler[np.abs(omega) < self.omega_thresh] = 0.0
+            # euler[np.abs(omega) < self.omega_thresh] = 0.0
             R_body = transforms3d.euler.euler2mat(*euler)
 
             # Scale T using body_velocity
-            T_scaled = T_body*np.linalg.norm(body_vel)*dt
+            T_scaled = T_body*np.linalg.norm(body_vel)*dt*self.process_nth_frame
 
             C_body = self.construct_pose_matrix(R_body, T_scaled)
 

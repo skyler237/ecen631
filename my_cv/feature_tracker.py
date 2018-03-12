@@ -11,11 +11,10 @@ from my_cv.multi_image import MultiImage
 class FeatureTracker:
     ''' Template class for tracking in an image
     '''
-    def __init__(self):
+    def __init__(self, img_size=(512,512,4), img_type='rgba'):
         # Default image parameters
-        # self.default_img_size = (512,512,3)
-        self.default_img_size = (480,640,3)
-        self.default_img_type = 'bgr'
+        self.default_img_size = img_size
+        self.default_img_type = img_type
 
         self.prev_gray = np.zeros((self.default_img_size[0], self.default_img_size[1]), np.uint8)
 
@@ -54,14 +53,14 @@ class FeatureTracker:
 
 
 class KLTTracker(FeatureTracker):
-    def __init__(self, max_features=40, min_features=1, dt=1/30.0):
+    def __init__(self, max_features=40, min_features=1, dt=1/30.0, img_size=(512,512,4), img_type='rgba'):
         # Inherit fram Tracker init
-        super().__init__()
+        super().__init__(img_size=img_size, img_type=img_type)
 
         # Initialize parameters
         self.min_features = min_features
         self.max_features = max_features
-        self.min_distance = 6
+        self.min_distance = 8
         self.feature_params = dict( maxCorners = max_features,
                        qualityLevel = 0.1,
                        minDistance = self.min_distance,
@@ -79,6 +78,11 @@ class KLTTracker(FeatureTracker):
         self.new_features = np.array([])
         self.feature_matching_iterations = 5
         self.feature_mask = np.ones(self.default_img_size[0:2], np.uint8)*255
+        self.corner_detector = "Fast"
+        # self.corner_detector = "GoodFeatures"
+        if self.corner_detector == "Fast":
+            self.fast = cv2.FastFeatureDetector_create(threshold=30, nonmaxSuppression=True)
+
 
         # Background subtraction
         self.prev_bg = np.zeros((self.default_img_size[0], self.default_img_size[1]), np.uint8)
@@ -99,7 +103,12 @@ class KLTTracker(FeatureTracker):
         for i in range(0,self.feature_matching_iterations):
             if len(self.features) < self.min_features:
                 mask = cv2.add(self.roi_mask, self.feature_mask)
-                features = cv2.goodFeaturesToTrack(self.prev_gray, mask=mask, **self.feature_params)
+                if self.corner_detector == "GoodFeatures":
+                    features = cv2.goodFeaturesToTrack(self.prev_gray, mask=mask, **self.feature_params)
+                elif self.corner_detector == "Fast":
+                    key_points = self.fast.detect(self.prev_gray, mask=mask)
+                    features = np.array([np.array(x.pt) for x in key_points], dtype=np.float32).reshape(-1,1,2)
+                # set_trace()
                 self.feature_mask = cv_utils.draw_features(self.feature_mask, features, size=self.min_distance, color=(0,0,0))
                 if len(self.features) == 0:
                     self.features = features
@@ -109,11 +118,11 @@ class KLTTracker(FeatureTracker):
 
 
         # Calculate optical flow
-        self.new_features, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.features, None, **self.lk_params)
+        self.new_features, is_good_match, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, self.features, None, **self.lk_params)
 
         # Threshold points that aren't moving enough
         meets_motion_thresh = [[np.linalg.norm(v) >= motion_thresh] for v in (self.new_features - self.features)]
-        status = np.logical_and(status, meets_motion_thresh)
+        status = np.logical_and(is_good_match, meets_motion_thresh)
 
         # Update previous data
         self.prev_gray = gray.copy()

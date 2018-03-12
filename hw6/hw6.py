@@ -42,7 +42,7 @@ def nothing():
     pass
 
 def visual_odometry_hw():
-    using_webcam = True
+    using_webcam = False
 
     # System setup
     if using_webcam:
@@ -53,16 +53,16 @@ def visual_odometry_hw():
         ret, frame_prev = cap.read()
         visual_odom = VO(camera_param_file)
         plotter = OdometryPlotter(plotting_freq=15)
-        uav_sim = UAVSim(urban_world)
+        uav_sim = UAVSim(forest_world)
         uav_sim.init_teleop()
         dt = 1.0/30.0
     else:
-        uav_sim = UAVSim(urban_world)
+        uav_sim = UAVSim(forest_world)
         uav_sim.init_teleop()
         uav_sim.velocity_teleop = True
         dt = uav_sim.dt
 
-        visual_odom = VO()
+        visual_odom = VO(process_nth_frame=2)
         plotter = OdometryPlotter(plotting_freq=1)
 
 
@@ -92,7 +92,7 @@ def visual_odometry_hw():
             omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
             # Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, R_truth=R) # Use true R
-            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt)
+            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, show_features=True)
             euler = np.array(transforms3d.euler.mat2euler(Rhat, 'rxyz'))
             # Make appropriate changes for weird Holodeck frames
             xyz = np.copy(phat)
