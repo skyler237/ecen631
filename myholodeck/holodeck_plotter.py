@@ -12,11 +12,10 @@ class HolodeckPlotter:
 
         # Define plot names
         plots = self._define_plots()
-        legends = self._define_legends()
 
         # Add plots to the window
         for p in plots:
-            self.plotter.add_plot(p, include_legend=(p[0] in legends))
+            self.plotter.add_plot(p)
 
         # Define state vectors for simpler input
         self._define_input_vectors()
@@ -29,10 +28,6 @@ class HolodeckPlotter:
                  'ax',      'ay',       'az'
                  ]
         return plots
-
-    def _define_legends(self):
-        legends = []
-        return legends
 
     def _define_input_vectors(self):
         self.plotter.define_input_vector("position", ['x', 'y', 'z'])
@@ -54,16 +49,13 @@ class CommandsPlotter(HolodeckPlotter):
 
     def _define_plots(self):
         # Define plot names
-        plots = ['x',                   'y',                    ['z', 'z_c'],
-                 ['xdot', 'xdot_c'],    ['ydot', 'ydot_c'],     'zdot',
-                 ['phi', 'phi_c'],      ['theta', 'theta_c'],   ['psi', 'psi_c'],
-                 'p',                   'q',                    ['r', 'r_c'],
-                 'ax',                  'ay',                   'az'
+        plots = ['x',               'y',                'z z_c -l',
+                 'xdot xdot_c -l',  'ydot ydot_c -l',   'zdot',
+                 'phi phi_c -l',    'theta theta_c -l', 'psi psi_c -l',
+                 'p',               'q',                'r r_c',
+                 'ax',              'ay',               'az'
                  ]
         return plots
-
-    def _define_legends(self):
-        return ['z']
 
     def _define_input_vectors(self):
         super()._define_input_vectors()
@@ -82,16 +74,11 @@ class OdometryPlotter(HolodeckPlotter):
 
     def _define_plots(self):
         # Define plot names
-        plots = [['x', 'x_e'],          ['y', 'y_e'],           ['z', 'z_e'],
-                 ['phi', 'phi_e'],      ['theta', 'theta_e'],   ['psi', 'psi_e'],
-                 'xdot',                'ydot',                 'zdot',
-                 'p',                   'q',                    'r',
-                 'ax',                  'ay',                   'az'
+        plots = ['x x_e -l',    'y y_e',            'z z_e',
+                 'phi phi_e',   'theta theta_e',    'psi psi_e',
+                 'x y x_e y_e -2d'
                  ]
         return plots
-
-    def _define_legends(self):
-        return ['x']
 
     def _define_input_vectors(self):
         super()._define_input_vectors()
