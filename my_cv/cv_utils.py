@@ -83,6 +83,9 @@ class FrameBuffer:
     def set_size(self, size):
         self.size = size
 
+    def get_frames(self):
+        return self.buffer
+
     def cnt(self):
         return len(self.buffer)
 
