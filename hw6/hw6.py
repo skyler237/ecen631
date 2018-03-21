@@ -62,7 +62,7 @@ def visual_odometry_hw():
         uav_sim.velocity_teleop = True
         dt = uav_sim.dt
 
-        visual_odom = VO(process_nth_frame=2)
+        visual_odom = VO(process_nth_frame=1)
         plotter = OdometryPlotter(plotting_freq=1)
 
 

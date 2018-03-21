@@ -105,7 +105,8 @@ class VO:
             R_body = transforms3d.euler.euler2mat(*euler)
 
             # Scale T using body_velocity
-            T_scaled = T_body*np.linalg.norm(body_vel)*dt*self.process_nth_frame
+            extra_scale = 0.65
+            T_scaled = T_body*np.linalg.norm(body_vel)*dt*extra_scale
 
             C_body = self.construct_pose_matrix(R_body, T_scaled)
 

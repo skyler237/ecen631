@@ -76,7 +76,10 @@ class OdometryPlotter(HolodeckPlotter):
         # Define plot names
         plots = ['x x_e -l',    'y y_e',            'z z_e',
                  'phi phi_e',   'theta theta_e',    'psi psi_e',
-                 'x y x_e y_e -2d'
+                 '_xdot',        '_ydot',             '_zdot',
+                 '_p',           '_q',                '_r',
+                 '_ax',          '_ay',               '_az',
+                 'y x y_e x_e -2d'
                  ]
         return plots
 
