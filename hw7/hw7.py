@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from IPython.core.debugger import set_trace
 from my_cv.visual_odometry import VO
+from my_cv.reconstruct_3d import Reconstruct3D
 from myholodeck.holodeck_plotter import OdometryPlotter
 from myholodeck.uav_sim import UAVSim
 import cv2
@@ -15,9 +16,12 @@ redwood_world = 'RedwoodForest'
 
 
 camera_param_file = '/home/skyler/school/ecen631/camera_calibration/src/my_camera_calibration/param/webcam_intrinsic_parameters.yaml'
+dataset_param_file = '/home/skyler/school/ecen631/hw7/templeRing/camera_params.yaml'
+dataset_img_file = lambda i: '/home/skyler/school/ecen631/hw7/templeRing/templeR000{0}.png'.format(i)
 
 def visual_odometry_hw():
     using_webcam = False
+    using_dataset = True
 
     # System setup
     if using_webcam:
@@ -31,6 +35,10 @@ def visual_odometry_hw():
         uav_sim = UAVSim(forest_world)
         uav_sim.init_teleop()
         dt = 1.0/30.0
+    elif using_dataset:
+        initial_img_index = 6
+        final_img_index = 12
+        reconstructor = Reconstruct3D(dataset_param_file)
     else:
         uav_sim = UAVSim(forest_world)
         uav_sim.init_teleop()
@@ -59,6 +67,14 @@ def visual_odometry_hw():
                 xyz[2] *= -1.0
                 euler[2] *= -1.0
                 plotter.update_sim_data(uav_sim, xyz, euler)
+        elif using_dataset:
+            # Cycle through images
+            for i in range(initial_img_index, final_img_index+1):
+                img = cv2.imread(dataset_img_file(i))
+                reconstructor.get_3d_points(img)
+
+            # Exit the loop
+            break
         else:
             # Run holodeck
             uav_sim.step_sim()

@@ -55,43 +55,6 @@ class CamParams:
         K = np.reshape(camera_matrix['data'], (camera_matrix['rows'], camera_matrix['cols']))
         return K
 
-
-class FrameBuffer:
-    def __init__(self, buffer_size):
-        self.size = buffer_size
-        self.buffer = []
-
-    def add_frame(self, frame):
-        self.buffer.insert(0, frame.copy())
-        while len(self.buffer) > self.size:
-            self.buffer.pop()
-
-    def fill(self, frame):
-        self.clear()
-        for i in range(0,self.size):
-            self.add_frame(frame)
-
-    def pop(self):
-        return self.buffer.pop()
-
-    def peek(self, i):
-        if i < self.size:
-            return self.buffer[i]
-        else:
-            print("Invalid index: {0}".format(i))
-
-    def set_size(self, size):
-        self.size = size
-
-    def get_frames(self):
-        return self.buffer
-
-    def cnt(self):
-        return len(self.buffer)
-
-    def clear(self):
-        self.buffer = []
-
 class BackgroundSubtractor:
     def __init__(self, display=False):
         # Class option
