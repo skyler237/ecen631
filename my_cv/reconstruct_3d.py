@@ -29,7 +29,7 @@ class Reconstruct3D:
             self.f = (self.K[0][0] + self.K[1][1])/2.0 # Take the average of fx and fy
 
         # Initialize frame buffer
-        self.window_size = 5
+        self.window_size = 2
         self.frame_buffer = FrameBuffer(self.window_size)
 
         # Initialize KLT tracker
@@ -59,8 +59,23 @@ class Reconstruct3D:
                                     [1.,  0.,  0.],
                                     [0.,  1.,  0.]])
 
-        app = pg.QtGui.QApplication([])
+        # Display variables and params
+        self.points = []
+        # 3D scatter plot
+        self.app = pg.mkQApp()
         self.plot_window = gl.GLViewWidget()
+        self.plot_window.addItem(gl.GLGridItem())
+        self.plot_window.addItem(gl.GLAxisItem())
+        self.scatter_plot = gl.GLScatterPlotItem()
+        self.plot_window.addItem(self.scatter_plot)
+        # 2D grid
+        self.grid_size = 100 # px
+        self.px_scale = 1 # m^2
+        self.display_px = #Code here
+        self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
+        self.grid_decay_rate = 0.9
+        self.grid_add_val = 20
+        self.display_scale = 10
 
 
     def get_3d_points(self, frame):
@@ -95,11 +110,35 @@ class Reconstruct3D:
             points_4d = cv2.triangulatePoints(P_prev, P_current, feature_matches[0], feature_matches[1])
 
             # Convert homogeneous coordinates to 3D coordinates
-            points_3d = points_4d[:, :3]
-            plot = gl.GLScatterPlotItem(pos=points_3d, color=pg.glColor('r'))
-            self.plot_window.addItem(plot)
+            points_3d = np.dot(self.R_cam2body, points_4d[:3, :]/points_4d[3,:]).transpose()
+            self.display_points(points_3d)
+
+    def display_points(self, points, dim=2):
+        if dim == 2:
+            # Decay existing points in the grid
+            self.grid = np.multiply(self.grid, self.grid_decay_rate).astype(np.uint8)
+
+            # Compute pixel locations of new points
+            points_2d = points[:, :2]
+            px_points = np.floor_divide(points_2d, self.px_scale) + np.array([self.grid_size/2, self.grid_size/2]).astype(np.uint8)
+
+            # Alter the grid
+            for x,y in px_points.astype(np.uint8):
+                if x in range(0,self.grid_size) and y in range(0,self.grid_size):
+                    self.grid[x,y] = np.clip(self.grid[x,y] + self.grid_add_val, 0, 255)
+
+            # Resize and rotate the grid
+
+            grid_display = cv2.resize(self.grid, tuple(np.multiply(np.shape(self.grid),self.display_scale)))
+            cv2.imshow("2D Grid", grid_display)
+            cv2.waitKey(0)
+
+        elif dim == 3:
+            self.points.extend(points)
+            self.scatter_plot.setData(pos=np.array(self.points), color=pg.glColor('r'), size=1)
+            self.scatter_plot.update()
             self.plot_window.show()
-            pg.QtGui.QApplication.exec_()
+            self.app.exec_()
 
 
     def compute_RT(self, frame, show_features=False, feature_matches=None):

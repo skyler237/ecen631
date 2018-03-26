@@ -4,3 +4,9 @@
 *.mat
 
 hw4/core
+
+*.jpg
+
+hw7/templeRing/
+
+\.idea/

@@ -8,7 +8,7 @@ class Buffer:
         if hasattr(data, "copy"):
             self.buffer.insert(0, data.copy())
         else:
-            self.buffer.insert(0, data.copy())
+            self.buffer.insert(0, data)
         while len(self.buffer) > self.size:
             self.buffer.pop()
 
