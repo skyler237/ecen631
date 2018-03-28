@@ -33,7 +33,7 @@ class Reconstruct3D:
         self.frame_buffer = FrameBuffer(self.window_size)
 
         # Initialize KLT tracker
-        self.klt = KLTTracker(max_features=1000, min_features=500, dt=1.0 / 30.0, img_size=self.img_size,
+        self.klt = KLTTracker(max_features=2000, min_features=1000, dt=1.0 / 30.0, img_size=self.img_size,
                               img_type=self.img_type)
 
         # RANSAC params
@@ -42,8 +42,8 @@ class Reconstruct3D:
 
         # Other params
         self.min_inliers = 50
-        self.omega_thresh = math.radians(0.1)
-        self.feature_motion_threshold = 0.0 #px
+        self.omega_thresh = math.radians(0.01)
+        self.feature_motion_threshold = 0.1 #px
         self.euler_threshold = math.radians(10.0)
 
         # Initialize state buffers
@@ -58,10 +58,13 @@ class Reconstruct3D:
         self.R_cam2body = np.array([[0.,  0.,  1.],
                                     [1.,  0.,  0.],
                                     [0.,  1.,  0.]])
+        self.P0 = np.hstack((np.eye(3),np.ones((3,1))))
 
         # 3D points pruning params
-        self.min_alt = 0.1 # m
-        self.max_alt = 50.0 # m
+        self.min_y = -1.0 # m
+        self.max_y = 0.0 # m
+        self.min_z = 0 # m
+        self.max_z = 1000 # m
 
         # Display variables and params
         self.points = []
@@ -73,12 +76,12 @@ class Reconstruct3D:
         self.scatter_plot = gl.GLScatterPlotItem()
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
-        self.px_scale = 1 # m^2
+        self.px_scale = 0.1 # m^2
         grid_width = 100.0 # m
         self.grid_size = int(grid_width/self.px_scale) # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
         self.grid_decay_rate = 0.99
-        self.grid_add_val = 1
+        self.grid_add_val = 10
         self.display_scale = int(1000*self.px_scale/grid_width)
         self.display_shape = (self.grid_size*self.display_scale,)*2
         self.display_px = np.ones((self.display_scale, self.display_scale))
@@ -93,6 +96,8 @@ class Reconstruct3D:
             # Get feature matches
             feature_matches = self.klt.get_feature_matches(frame, self.img_type,
                                                                    motion_thresh=self.feature_motion_threshold)
+
+            # display_features(frame, feature_matches[1])
             # TODO: Try cv2.correctmatches function
 
             # Get previous projection matrix
@@ -122,32 +127,55 @@ class Reconstruct3D:
             self.T_buffer.push(T_current)
 
             # Get current projection matrix
-            P_current = self.get_proj_mat(R_current, T_current)
+            R_step = np.dot(R_current, R_prev.transpose())
+            T_step = -np.dot(R_prev, (T_current.reshape(3,1) - T_prev.reshape(3,1)))
+            P_step = self.get_proj_mat(R_step, T_step)
+            # P_current = self.get_proj_mat(R_current, T_current)
 
             # Triangulate points to estimate 3D position in camera frame
-            points_4d = cv2.triangulatePoints(P_prev, P_current, feature_matches[0], feature_matches[1])
+            try:
+                points_4d = cv2.triangulatePoints(self.P0, P_step, feature_matches[0], feature_matches[1])
+            except:
+                return
 
             # Convert homogeneous coordinates to 3D coordinates
             points_3d_cam = points_4d[:3, :]/points_4d[3,:]
-            points_3d_cam0 = np.dot(R_current.transpose(), points_3d_cam) - T_current.reshape(3,1)
-            # Translate points ??
+
+            # Prune points
+            pruned_points_cam = self.prune_3d_points(points_3d_cam)
+            # pruned_points_cam = np.copy(points_3d_cam)
+
+            # Translate points
+            points_3d_cam0 = np.dot(R_prev.transpose(), pruned_points_cam) - T_prev.reshape(3,1)
+            # points_3d_cam0 = pruned_points_cam + T_current.reshape(3,1)
+
+            # Convert to NED
             points_3d_world = np.dot(self.R_cam2body, points_3d_cam0).transpose()
-            points_3d_world = self.prune_3d_points(points_3d_world)
 
             pos = np.dot(self.R_cam2body, T_current)[:2]
             self.display_points(points_3d_world, pos)
 
     def prune_3d_points(self, points):
+        # convert points to row vectors for easier boolean indexing
+        points = np.copy(points).reshape(-1, 3)
         x = points[:, 0]
         y = points[:, 1]
         z = points[:, 2]
 
         # Limit altitude (negative y direction)
-        good_min_alt = [z <= -self.min_alt]
-        good_max_alt = [z >= -self.max_alt]
-        good_alt = np.logical_and(good_min_alt, good_max_alt).reshape(points.shape[0])
+        good_min_y = [y >= self.min_y]
+        good_max_y = [y <= self.max_y]
+        good_y = np.logical_and(good_min_y, good_max_y)
 
-        return points[good_alt]
+        # Limit z_axis
+        good_z = np.logical_and([z >= self.min_z], [z <= self.max_z])
+
+        good_pts = np.logical_and(good_y, good_z).reshape(points.shape[0])
+
+        pruned_points = points[good_pts]
+
+        # Convert points back to column vectors
+        return pruned_points.reshape(3, -1)
 
     def display_points(self, points, pos, dim=2):
         if dim == 2:
@@ -161,7 +189,10 @@ class Reconstruct3D:
             # Alter the grid
             for x,y in px_points.astype(np.uint32):
                 if x in range(0,self.grid_size) and y in range(0,self.grid_size):
-                    self.grid[x,y] = np.clip(self.grid[x,y] + self.grid_add_val, 0, 255)
+                    px_x = x
+                    px_y = (self.grid_size - 1) - y
+                    self.grid[px_x,px_y] += self.grid_add_val
+            self.grid = np.clip(self.grid, 0, 255)
 
             # Convert to color for viewing
             grid_display = cv2.cvtColor(self.grid, cv2.COLOR_GRAY2BGR)
@@ -169,11 +200,14 @@ class Reconstruct3D:
             pos_px = np.floor_divide(pos, self.px_scale) + np.array([self.grid_size/2, self.grid_size/2]).astype(np.uint32)
             pos_x = int(pos_px[0])
             pos_y = int(pos_px[1])
-            grid_display[pos_x, pos_y, :] = [0,0,255]
+            if pos_x in range(0, self.grid_size) and pos_y in range(0, self.grid_size):
+                px_x = pos_y
+                px_y = (self.grid_size - 1) - pos_x
+                grid_display[px_y, px_x, :] = [0, 0, 255]
 
             # Resize and rotate the grid
             # grid_display = np.kron(grid_display, self.display_px)
-            grid_display = cv2.resize(grid_display, (0,0), fx=self.display_scale, fy=self.display_scale)
+            grid_display = cv2.resize(grid_display, (0,0), fx=self.display_scale, fy=self.display_scale, interpolation=cv2.INTER_NEAREST)
             cv2.imshow("2D Grid", grid_display)
             cv2.waitKey(1)
 
