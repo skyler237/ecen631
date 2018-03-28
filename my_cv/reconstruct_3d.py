@@ -59,6 +59,10 @@ class Reconstruct3D:
                                     [1.,  0.,  0.],
                                     [0.,  1.,  0.]])
 
+        # 3D points pruning params
+        self.min_alt = 0.1 # m
+        self.max_alt = 50.0 # m
+
         # Display variables and params
         self.points = []
         # 3D scatter plot
@@ -69,12 +73,12 @@ class Reconstruct3D:
         self.scatter_plot = gl.GLScatterPlotItem()
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
-        self.px_scale = 0.2 # m^2
-        grid_width = 100.0 # m
+        self.px_scale = 0.5 # m^2
+        grid_width = 50.0 # m
         self.grid_size = int(grid_width/self.px_scale) # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
-        self.grid_decay_rate = 0.9
-        self.grid_add_val = 20
+        self.grid_decay_rate = 0.999
+        self.grid_add_val = 1
         self.display_scale = int(1000*self.px_scale/grid_width)
         self.display_px = np.ones((self.display_scale, self.display_scale))
 
@@ -88,6 +92,7 @@ class Reconstruct3D:
             # Get feature matches
             feature_matches = self.klt.get_feature_matches(frame, self.img_type,
                                                                    motion_thresh=self.feature_motion_threshold)
+            # TODO: Try cv2.correctmatches function
 
             # Get previous projection matrix
             R_prev = self.R_buffer.last()
@@ -118,13 +123,27 @@ class Reconstruct3D:
             # Get current projection matrix
             P_current = self.get_proj_mat(R_current, T_current)
 
-
             # Triangulate points to estimate 3D position in camera frame
             points_4d = cv2.triangulatePoints(P_prev, P_current, feature_matches[0], feature_matches[1])
 
             # Convert homogeneous coordinates to 3D coordinates
             points_3d = np.dot(self.R_cam2body, points_4d[:3, :]/points_4d[3,:]).transpose()
+            # Translate points ??
+            points_3d = points_3d + np.reshape(T_current, (1,3))
+            points_3d = self.prune_3d_points(points_3d)
             self.display_points(points_3d)
+
+    def prune_3d_points(self, points):
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+
+        # Limit altitude (negative y direction)
+        good_min_alt = [y <= -self.min_alt]
+        good_max_alt = [y >= -self.max_alt]
+        good_alt = np.logical_and(good_min_alt, good_max_alt).reshape(points.shape[0])
+
+        return points[good_alt]
 
     def display_points(self, points, dim=2):
         if dim == 2:
