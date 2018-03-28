@@ -73,13 +73,14 @@ class Reconstruct3D:
         self.scatter_plot = gl.GLScatterPlotItem()
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
-        self.px_scale = 0.5 # m^2
-        grid_width = 50.0 # m
+        self.px_scale = 1 # m^2
+        grid_width = 100.0 # m
         self.grid_size = int(grid_width/self.px_scale) # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
-        self.grid_decay_rate = 0.999
+        self.grid_decay_rate = 0.99
         self.grid_add_val = 1
         self.display_scale = int(1000*self.px_scale/grid_width)
+        self.display_shape = (self.grid_size*self.display_scale,)*2
         self.display_px = np.ones((self.display_scale, self.display_scale))
 
 
@@ -127,11 +128,14 @@ class Reconstruct3D:
             points_4d = cv2.triangulatePoints(P_prev, P_current, feature_matches[0], feature_matches[1])
 
             # Convert homogeneous coordinates to 3D coordinates
-            points_3d = np.dot(self.R_cam2body, points_4d[:3, :]/points_4d[3,:]).transpose()
+            points_3d_cam = points_4d[:3, :]/points_4d[3,:]
+            points_3d_cam0 = np.dot(R_current.transpose(), points_3d_cam) - T_current.reshape(3,1)
             # Translate points ??
-            points_3d = points_3d + np.reshape(T_current, (1,3))
-            points_3d = self.prune_3d_points(points_3d)
-            self.display_points(points_3d)
+            points_3d_world = np.dot(self.R_cam2body, points_3d_cam0).transpose()
+            points_3d_world = self.prune_3d_points(points_3d_world)
+
+            pos = np.dot(self.R_cam2body, T_current)[:2]
+            self.display_points(points_3d_world, pos)
 
     def prune_3d_points(self, points):
         x = points[:, 0]
@@ -139,13 +143,13 @@ class Reconstruct3D:
         z = points[:, 2]
 
         # Limit altitude (negative y direction)
-        good_min_alt = [y <= -self.min_alt]
-        good_max_alt = [y >= -self.max_alt]
+        good_min_alt = [z <= -self.min_alt]
+        good_max_alt = [z >= -self.max_alt]
         good_alt = np.logical_and(good_min_alt, good_max_alt).reshape(points.shape[0])
 
         return points[good_alt]
 
-    def display_points(self, points, dim=2):
+    def display_points(self, points, pos, dim=2):
         if dim == 2:
             # Decay existing points in the grid
             self.grid = np.multiply(self.grid, self.grid_decay_rate).astype(np.uint8)
@@ -159,10 +163,17 @@ class Reconstruct3D:
                 if x in range(0,self.grid_size) and y in range(0,self.grid_size):
                     self.grid[x,y] = np.clip(self.grid[x,y] + self.grid_add_val, 0, 255)
 
-            # Resize and rotate the grid
+            # Convert to color for viewing
+            grid_display = cv2.cvtColor(self.grid, cv2.COLOR_GRAY2BGR)
 
-            # grid_display = cv2.resize(self.grid, tuple(np.multiply(np.shape(self.grid),self.display_scale)))
-            grid_display = np.kron(self.grid, self.display_px)
+            pos_px = np.floor_divide(pos, self.px_scale) + np.array([self.grid_size/2, self.grid_size/2]).astype(np.uint32)
+            pos_x = int(pos_px[0])
+            pos_y = int(pos_px[1])
+            grid_display[pos_x, pos_y, :] = [0,0,255]
+
+            # Resize and rotate the grid
+            # grid_display = np.kron(grid_display, self.display_px)
+            grid_display = cv2.resize(grid_display, (0,0), fx=self.display_scale, fy=self.display_scale)
             cv2.imshow("2D Grid", grid_display)
             cv2.waitKey(1)
 
