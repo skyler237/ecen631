@@ -21,7 +21,7 @@ dataset_img_file = lambda i: '/home/skyler/school/ecen631/hw7/templeRing/templeR
 
 def visual_odometry_hw():
     using_webcam = False
-    using_dataset = True
+    using_dataset = False
 
     # System setup
     if using_webcam:
@@ -40,13 +40,12 @@ def visual_odometry_hw():
         final_img_index = 12
         reconstructor = Reconstruct3D(dataset_param_file)
     else:
-        uav_sim = UAVSim(forest_world)
+        uav_sim = UAVSim(urban_world)
         uav_sim.init_teleop()
         uav_sim.velocity_teleop = True
         dt = uav_sim.dt
 
-        visual_odom = VO(process_nth_frame=1)
-        plotter = OdometryPlotter(plotting_freq=1)
+        reconstructor = Reconstruct3D(dataset_param_file)
 
 
 
@@ -82,14 +81,9 @@ def visual_odometry_hw():
             body_vel = uav_sim.get_body_velocity()
             omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
-            # Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, R_truth=R) # Use true R
-            Rhat, phat = visual_odom.estimate_odometry(cam, body_vel, omega, dt, show_features=True)
-            euler = np.array(transforms3d.euler.mat2euler(Rhat, 'rxyz'))
-            # Make appropriate changes for weird Holodeck frames
-            xyz = np.copy(phat)
-            xyz[2] *= -1.0
-            euler[2] *= -1.0
-            plotter.update_sim_data(uav_sim, xyz, euler)
+            T = uav_sim.get_position()
+            # reconstructor.get_3d_points(cam, R_truth=R, T_truth=T)
+            reconstructor.get_3d_points(cam)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('r'):
