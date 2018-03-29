@@ -82,7 +82,7 @@ def visual_odometry_hw():
             omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
             T = uav_sim.get_position()
-            reconstructor.get_3d_points(cam, R_truth=R, T_truth=T)
+            reconstructor.get_3d_points2(cam, R_truth=R, T_truth=T)
             # reconstructor.get_3d_points(cam)
 
         key = cv2.waitKey(1) & 0xFF

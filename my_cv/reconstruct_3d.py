@@ -37,8 +37,8 @@ class Reconstruct3D:
                               img_type=self.img_type)
 
         # RANSAC params
-        self.ransac_thresh = 0.1
-        self.ransac_prob = 0.999
+        self.ransac_thresh = 0.01
+        self.ransac_prob = 0.9999
 
         # Other params
         self.min_inliers = 50
@@ -55,16 +55,24 @@ class Reconstruct3D:
         R_init = np.eye(3)               # estimated rotation (matrix)
         self.R_buffer.push(R_init)
 
+        self.R_prev_truth_cam = R_init
+        self.T_prev_truth_cam = T_init
+        self.initialized = False
+
         self.R_cam2body = np.array([[0.,  0.,  1.],
                                     [1.,  0.,  0.],
-                                    [0.,  1.,  0.]])
-        self.P0 = np.hstack((np.eye(3),np.ones((3,1))))
+                                    [0.,  -1.,  0.]])
+        self.P0 = np.dot(self.K, np.hstack((np.eye(3),np.ones((3,1)))))
 
         # 3D points pruning params
-        self.min_y = -1.0 # m
-        self.max_y = 0.0 # m
-        self.min_z = 0 # m
-        self.max_z = 1000 # m
+        # self.min_y = -1.0 # m
+        # self.max_y = 0.0 # m
+        # self.min_z = 0 # m
+        # self.max_z = 1000 # m
+        self.min_y = -np.infty # m
+        self.max_y = np.infty # m
+        self.min_z = -np.infty  # m
+        self.max_z = np.infty # m
 
         # Display variables and params
         self.points = []
@@ -76,8 +84,8 @@ class Reconstruct3D:
         self.scatter_plot = gl.GLScatterPlotItem()
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
-        self.px_scale = 0.1 # m^2
-        grid_width = 100.0 # m
+        self.px_scale = 10 # m^2
+        grid_width = 1000.0 # m
         self.grid_size = int(grid_width/self.px_scale) # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
         self.grid_decay_rate = 0.99
@@ -86,8 +94,69 @@ class Reconstruct3D:
         self.display_shape = (self.grid_size*self.display_scale,)*2
         self.display_px = np.ones((self.display_scale, self.display_scale))
 
+    def get_3d_points2(self, frame, R_truth=None, T_truth=None):
+        if R_truth is not None and T_truth is not None:
+            use_truth = True
+        else:
+            use_truth = False
 
-    def get_3d_points(self, frame, R_truth=None, T_truth=None):
+        if not self.initialized:
+            # Initialize the feature tracker
+            self.klt.get_feature_matches(frame,self.img_type, self.feature_motion_threshold)
+            self.initialized = True
+        else:
+            # Get feature matches
+            feature_matches = self.klt.get_feature_matches(frame, self.img_type,
+                                                                   motion_thresh=self.feature_motion_threshold)
+            if feature_matches[0] is None:
+                return # skip this iteration if no feature matches
+
+            # Get Rotation and translation info between frames
+            if use_truth:
+                R_truth_cam = np.dot(self.R_cam2body.transpose(), np.dot(R_truth, self.R_cam2body))
+                T_truth_cam = np.dot(self.R_cam2body.transpose(), T_truth)
+
+                # R_step = R(k-1 -> k) = R(0 -> k)*R(k-1 -> 0)
+                R_step = np.dot(self.R_prev_truth_cam.transpose(), R_truth_cam)
+                # T_step = T(k -> k-1 in k-1) = -R(0 -> k-1)*[T(0->k in 0) - T(0->k-1 in 0)]
+                T_step = np.dot(self.R_prev_truth_cam, self.T_prev_truth_cam.reshape(3,1) - T_truth_cam.reshape(3,1))
+                # print("T_diff = {0}".format(self.T_prev_truth_cam.reshape(3,1) - T_truth_cam.reshape(3,1)))
+
+                R_prev = np.copy(self.R_prev_truth_cam)
+                T_prev = np.copy(self.T_prev_truth_cam)
+                self.R_prev_truth_cam = np.copy(R_truth_cam)
+                self.T_prev_truth_cam = np.copy(T_truth_cam)
+            else:
+                R_step, T_step = self.compute_RT(frame, feature_matches=feature_matches)
+                # TODO: Accumulate R_prev here
+
+            # print("T_step = {0}".format(T_step))
+            # print("R_step = {0}".format(transforms3d.euler.mat2euler(R_step)))
+            P1 = self.get_proj_mat(R_step, T_step)
+
+            # Triangulate points
+            points_4d = cv2.triangulatePoints(self.P0, P1, feature_matches[0], feature_matches[1])
+            # print("Average 4d point = {0}".format(np.average(points_4d,1)))
+
+            # Convert homogeneous coordinates to 3D coordinates
+            points_3d_cam = points_4d[:3, :]/points_4d[3,:]
+            # print("Average cam point = {0}".format(np.average(points_3d_cam,1)))
+
+            # Prune points
+            pruned_points_cam = self.prune_3d_points(points_3d_cam)
+
+            # Transform back to initial frame
+            # X(0->x in 0) = R(k-1 -> 0)*X(k-1 -> x in k-1) + T(0->k-1 in 0)
+            points_3d_cam0 = np.dot(R_prev.transpose(), pruned_points_cam) + T_prev.reshape(3,1)
+
+            # Convert to NED
+            points_3d_world = np.dot(self.R_cam2body, points_3d_cam0).transpose()
+
+            pos = np.dot(self.R_cam2body, T_truth_cam)[:2]
+            self.display_points(points_3d_world, pos)
+
+
+    def get_3d_points0(self, frame, R_truth=None, T_truth=None):
         self.frame_buffer.add_frame(frame)
         if self.frame_buffer.cnt() == 1:
             # Initialize the feature tracker
@@ -96,13 +165,15 @@ class Reconstruct3D:
             # Get feature matches
             feature_matches = self.klt.get_feature_matches(frame, self.img_type,
                                                                    motion_thresh=self.feature_motion_threshold)
+            if feature_matches[0] is None:
+                return # skip this iteration if no feature matches
 
             # display_features(frame, feature_matches[1])
             # TODO: Try cv2.correctmatches function
 
             # Get previous projection matrix
-            R_prev = self.R_buffer.last()
-            T_prev = self.T_buffer.last()
+            R_prev = self.R_buffer.peek(0)
+            T_prev = self.T_buffer.peek(0)
             P_prev = self.get_proj_mat(R_prev, T_prev)
 
             # Switch for using true rotation and translation
@@ -127,9 +198,14 @@ class Reconstruct3D:
             self.T_buffer.push(T_current)
 
             # Get current projection matrix
+            # R_step = R(k-1 -> k) = R(0 -> k)*R(k-1 -> 0)
             R_step = np.dot(R_current, R_prev.transpose())
+            # T_step = T(k -> k-1 in k-1) = -R(0 -> k-1)*[T(0->k in 0) - T(0->k-1 in 0)]
             T_step = -np.dot(R_prev, (T_current.reshape(3,1) - T_prev.reshape(3,1)))
             P_step = self.get_proj_mat(R_step, T_step)
+            print("T_current = {0}".format(T_current))
+            print("T_step = {0}".format(T_step))
+            print("R_step = {0}".format(transforms3d.euler.mat2euler(R_step)))
             # P_current = self.get_proj_mat(R_current, T_current)
 
             # Triangulate points to estimate 3D position in camera frame
@@ -140,13 +216,15 @@ class Reconstruct3D:
 
             # Convert homogeneous coordinates to 3D coordinates
             points_3d_cam = points_4d[:3, :]/points_4d[3,:]
+            print("Average cam point = {0}".format(np.average(points_3d_cam,1)))
 
             # Prune points
             pruned_points_cam = self.prune_3d_points(points_3d_cam)
             # pruned_points_cam = np.copy(points_3d_cam)
 
             # Translate points
-            points_3d_cam0 = np.dot(R_prev.transpose(), pruned_points_cam) - T_prev.reshape(3,1)
+            # X(0->x in 0) = R(k-1 -> 0)*X(k-1 -> x in k-1) + T(0->k-1 in 0)
+            points_3d_cam0 = np.dot(R_prev.transpose(), pruned_points_cam) + T_prev.reshape(3,1)
             # points_3d_cam0 = pruned_points_cam + T_current.reshape(3,1)
 
             # Convert to NED
@@ -163,9 +241,7 @@ class Reconstruct3D:
         z = points[:, 2]
 
         # Limit altitude (negative y direction)
-        good_min_y = [y >= self.min_y]
-        good_max_y = [y <= self.max_y]
-        good_y = np.logical_and(good_min_y, good_max_y)
+        good_y = np.logical_and([y >= self.min_y], [y <= self.max_y])
 
         # Limit z_axis
         good_z = np.logical_and([z >= self.min_z], [z <= self.max_z])
@@ -189,8 +265,8 @@ class Reconstruct3D:
             # Alter the grid
             for x,y in px_points.astype(np.uint32):
                 if x in range(0,self.grid_size) and y in range(0,self.grid_size):
-                    px_x = x
-                    px_y = (self.grid_size - 1) - y
+                    px_x = (self.grid_size - 1) - x
+                    px_y = y
                     self.grid[px_x,px_y] += self.grid_add_val
             self.grid = np.clip(self.grid, 0, 255)
 
