@@ -87,8 +87,8 @@ class Reconstruct3D:
         self.scatter_plot = gl.GLScatterPlotItem()
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
-        self.px_scale = 2  # m^2
-        grid_width = 100.0  # m
+        self.px_scale = 0.5  # m^2
+        grid_width = 40.0  # m
         self.grid_size = int(grid_width / self.px_scale)  # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
         self.grid_decay_rate = 0.99
@@ -97,11 +97,11 @@ class Reconstruct3D:
         self.display_shape = (self.grid_size * self.display_scale,) * 2
         self.display_px = np.ones((self.display_scale, self.display_scale))
 
-    def get_3d_points2(self, frame, body_vel, R_truth=None, T_truth=None):
-        if R_truth is not None and T_truth is not None:
-            use_truth = True
-        else:
-            use_truth = False
+    def get_3d_points2(self, frame, body_vel, R_truth=None, T_truth=None, use_truth=False):
+        # if R_truth is not None and T_truth is not None:
+        #     use_truth = True
+        # else:
+        #     use_truth = False
 
         if not self.initialized:
             # Initialize the feature tracker
@@ -139,7 +139,7 @@ class Reconstruct3D:
                 R_current_cam = R_step.dot(self.R_prev_cam)
                 cam_vel = self.R_cam2body.T.dot(body_vel)
                 scale = np.linalg.norm(cam_vel)*self.dt
-                T_current_cam = (-R_current_cam.T.dot(T_step) + self.T_prev_cam)*scale
+                T_current_cam = (-R_current_cam.T.dot(T_step*scale) + self.T_prev_cam)
 
 
             # print("T_step = {0}".format(T_step))
@@ -164,7 +164,9 @@ class Reconstruct3D:
             # Convert to NED
             points_3d_world = np.dot(self.R_cam2body, points_3d_cam0).transpose()
 
-            pos = np.dot(self.R_cam2body, T_current_cam.reshape(3,1))[:2]
+            # pos = np.dot(self.R_cam2body, T_current_cam.reshape(3,1))[:2]
+            pos = T_truth[:2]
+            print("Pos = {0}".format(pos))
             self.R_prev_cam = R_current_cam
             self.T_prev_cam = T_current_cam
             self.display_points(points_3d_world, pos)
@@ -286,8 +288,8 @@ class Reconstruct3D:
             # Convert to color for viewing
             grid_display = cv2.cvtColor(self.grid, cv2.COLOR_GRAY2BGR)
 
-            pos_px = np.floor_divide(pos, self.px_scale) + np.array([[self.grid_size / 2], [self.grid_size / 2]]).astype(
-                np.uint32)
+            pos_px = np.floor_divide(pos, self.px_scale) + np.array([self.grid_size / 2, self.grid_size / 2]).astype(
+                np.uint32).reshape(np.shape(pos))
             pos_x = int(pos_px[0])
             pos_y = int(pos_px[1])
             if pos_x in range(0, self.grid_size) and pos_y in range(0, self.grid_size):
