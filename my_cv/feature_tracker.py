@@ -159,7 +159,7 @@ class KLTTracker(FeatureTracker):
 
         return meas
 
-    def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False):
+    def set_roi(self, frame, region_x, region_y, region_width, region_height, center=False, bg_sub=True):
         super().set_roi(frame, region_x, region_y, region_width, region_height, center)
 
         x,y,w,h = self.roi
@@ -167,10 +167,11 @@ class KLTTracker(FeatureTracker):
         self.roi_mask = np.zeros((self.default_img_size[0], self.default_img_size[1]), dtype=np.uint8)
         cv2.rectangle(self.roi_mask, (x,y), (x+w,y+h), color=255, thickness=cv2.FILLED)
 
-        # Use background subtraction to isolate moving targets within roi
-        fgmask = self.bgsub.get_fg(frame)
-        # Get the intersection between the foreground and roi rectangle
-        self.roi_mask = np.logical_and(fgmask, self.roi_mask).astype(np.uint8)*255
+        if bg_sub:
+            # Use background subtraction to isolate moving targets within roi
+            fgmask = self.bgsub.get_fg(frame)
+            # Get the intersection between the foreground and roi rectangle
+            self.roi_mask = np.logical_and(fgmask, self.roi_mask).astype(np.uint8)*255
 
     def update_display(self, frame):
         frame = np.copy(frame)

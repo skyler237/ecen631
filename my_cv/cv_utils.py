@@ -37,9 +37,9 @@ def draw_features(img, features, size=2, color=(0,0,255)):
         img = cv2.circle(img,(int(a),int(b)),size,color,-1)
     return img
 
-def display_features(frame, features):
+def display_features(frame, features, color=(0, 0, 255)):
     frame = np.copy(frame)
-    frame = draw_features(frame, features)
+    frame = draw_features(frame, features, color=color)
     cv2.imshow('Features', frame)
     cv2.waitKey(1)
 
