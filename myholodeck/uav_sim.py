@@ -53,7 +53,7 @@ class UAVSim():
         self.yawrate_min = math.radians(30)
         self.yawrate_max = math.radians(360)
         self.altrate_min = 0.1
-        self.altrate_max = 0.5
+        self.altrate_max = 0.25
         self.speed_min = 0.0
         self.speed_max = 1.0
         self.speed_rate = 0.05

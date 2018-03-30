@@ -60,7 +60,7 @@ class KLTTracker(FeatureTracker):
         # Initialize parameters
         self.min_features = min_features
         self.max_features = max_features
-        self.min_distance = 8
+        self.min_distance = 7
         self.feature_params = dict( maxCorners = max_features,
                        qualityLevel = 0.1,
                        minDistance = self.min_distance,
@@ -102,14 +102,17 @@ class KLTTracker(FeatureTracker):
         # Add good features
         for i in range(0,self.feature_matching_iterations):
             if len(self.features) < self.min_features:
-                mask = cv2.add(self.roi_mask, self.feature_mask)
+                self.feature_mask = np.ones(self.default_img_size[0:2], np.uint8) * 255
+                self.feature_mask = cv_utils.draw_features(self.feature_mask, self.features,
+                                                           size=self.min_distance, color=(0, 0, 0))
+                mask = cv2.bitwise_and(self.roi_mask, self.feature_mask)
                 if self.corner_detector == "GoodFeatures":
                     features = cv2.goodFeaturesToTrack(self.prev_gray, mask=mask, **self.feature_params)
                 elif self.corner_detector == "Fast":
                     key_points = self.fast.detect(self.prev_gray, mask=mask)
                     features = np.array([np.array(x.pt) for x in key_points], dtype=np.float32).reshape(-1,1,2)
                 # set_trace()
-                self.feature_mask = cv_utils.draw_features(self.feature_mask, features, size=self.min_distance, color=(0,0,0))
+                # self.feature_mask = cv_utils.draw_features(self.feature_mask, features, size=self.min_distance, color=(0,0,0))
                 if len(self.features) == 0:
                     self.features = features
                 else:
@@ -131,7 +134,8 @@ class KLTTracker(FeatureTracker):
             return [None, None]
         else:
             # Throw away bad points and add good ones to existing set
-            self.feature_mask = cv_utils.draw_features(self.feature_mask, self.features[status==0], size=self.min_distance, color=(255,255,255))
+            # self.feature_mask = cv_utils.draw_features(self.feature_mask, self.features[status == 0],
+            #                                            size=self.min_distance, color=(255, 255, 255))
             self.features = self.features[status==1].reshape(-1,1,2)
             self.new_features = self.new_features[status==1].reshape(-1,1,2)
             return [self.features, self.new_features]

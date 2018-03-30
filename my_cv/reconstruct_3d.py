@@ -34,18 +34,19 @@ class Reconstruct3D:
         self.frame_buffer = FrameBuffer(self.window_size)
 
         # Initialize KLT tracker
-        self.klt = KLTTracker(max_features=2000, min_features=1000, dt=1.0 / 30.0, img_size=self.img_size,
+        self.klt = KLTTracker(max_features=1000, min_features=800, dt=1.0 / 30.0, img_size=self.img_size,
                               img_type=self.img_type)
         self.roi_height = 100
+        self.roi_y_offset = 100
 
         # RANSAC params
-        self.ransac_thresh = 0.01
-        self.ransac_prob = 0.9999
+        self.ransac_thresh = 0.5
+        self.ransac_prob = 0.99
 
         # Other params
         self.min_inliers = 50
-        self.omega_thresh = math.radians(0.01)
-        self.feature_motion_threshold = 0.1  # px
+        self.omega_thresh = math.radians(0.00)
+        self.feature_motion_threshold = 0.01  # px
         self.euler_threshold = math.radians(10.0)
         self.dt = 1.0/30.0
 
@@ -64,18 +65,21 @@ class Reconstruct3D:
 
         self.R_cam2body = np.array([[0., 0., 1.],
                                     [1., 0., 0.],
-                                    [0., -1., 0.]])
+                                    [0., 1., 0.]])
+        self.R_truth_fix = np.array([[1., 0., 0.],
+                                    [0., 1., 0.],
+                                    [0., 0., -1.]])
         self.P0 = np.dot(self.K, np.hstack((np.eye(3), np.ones((3, 1)))))
 
         # 3D points pruning params
-        # self.min_y = -1.0 # m
-        # self.max_y = 0.0 # m
-        # self.min_z = 0 # m
-        # self.max_z = 1000 # m
-        self.min_y = -np.infty  # m
-        self.max_y = np.infty  # m
-        self.min_z = 0  # m
-        self.max_z = 500  # m
+        self.min_y = -100 # m
+        self.max_y = 100.0 # m
+        self.min_z = 0 # m
+        self.max_z = 1000 # m
+        # self.min_y = -np.infty  # m
+        # self.max_y = np.infty  # m
+        # self.min_z = -np.infty  # m
+        # self.max_z = np.infty  # m
 
         # Display variables and params
         self.points = []
@@ -88,11 +92,11 @@ class Reconstruct3D:
         self.plot_window.addItem(self.scatter_plot)
         # 2D grid
         self.px_scale = 0.5  # m^2
-        grid_width = 40.0  # m
+        grid_width = 50.0  # m
         self.grid_size = int(grid_width / self.px_scale)  # px
         self.grid = np.zeros((self.grid_size, self.grid_size), np.uint8)
-        self.grid_decay_rate = 0.99
-        self.grid_add_val = 10
+        self.grid_decay_rate = 0.95
+        self.grid_add_val = 20
         self.display_scale = int(1000 * self.px_scale / grid_width)
         self.display_shape = (self.grid_size * self.display_scale,) * 2
         self.display_px = np.ones((self.display_scale, self.display_scale))
@@ -105,8 +109,8 @@ class Reconstruct3D:
 
         if not self.initialized:
             # Initialize the feature tracker
-            self.klt.set_roi(frame, int(self.img_size[0] / 2), int(self.img_size[1] / 2),
-                             self.img_size[1], self.roi_height, center=True, bg_sub=False)
+            self.klt.set_roi(frame, 0, int(self.roi_y_offset),
+                             self.img_size[1], self.roi_height, center=False, bg_sub=False)
             self.klt.get_feature_matches(frame, self.img_type, self.feature_motion_threshold)
             self.initialized = True
         else:
@@ -115,11 +119,12 @@ class Reconstruct3D:
             feature_matches = self.klt.get_feature_matches(frame, self.img_type,
                                                            motion_thresh=self.feature_motion_threshold)
             display_features(frame, feature_matches[1])
-            if feature_matches[0] is None or feature_matches[1] is None:
+            if len(feature_matches[0]) == 0:
                 return  # skip this iteration if no feature matches
 
             # Get Rotation and translation info between frames
             if use_truth:
+                R_truth = self.R_truth_fix.T.dot(R_truth.dot(self.R_truth_fix)).transpose()
                 R_truth_cam = np.dot(self.R_cam2body.transpose(), np.dot(R_truth, self.R_cam2body))
                 T_truth_cam = np.dot(self.R_cam2body.transpose(), T_truth)
 
@@ -127,6 +132,13 @@ class Reconstruct3D:
                 R_step = np.dot(R_truth_cam, self.R_prev_cam.transpose())
                 # T_step = T(k -> k-1 in k) = -R(0 -> k-1)*[T(0->k in 0) - T(0->k-1 in 0)]
                 T_step = np.dot(R_truth_cam, self.T_prev_cam.reshape(3, 1) - T_truth_cam.reshape(3, 1))
+                t_norm = np.linalg.norm(T_step)
+                dv_norm = np.linalg.norm(body_vel)*self.dt
+                # FIXME: Testing translational scaling
+                t_scale = dv_norm/t_norm
+                T_step *= t_scale
+                # print("t_norm = {0}".format(t_norm))
+                # print("dv_norm = {0}".format(dv_norm))
                 # print("T_diff = {0}".format(self.T_prev_cam.reshape(3,1) - T_truth_cam.reshape(3,1)))
 
                 R_current_cam = np.copy(R_truth_cam)
@@ -153,6 +165,12 @@ class Reconstruct3D:
             # Convert homogeneous coordinates to 3D coordinates
             points_3d_cam = points_4d[:3, :] / points_4d[3, :]
             # print("Average cam point = {0}".format(np.average(points_3d_cam,1)))
+            # FIXME: Testing scaling
+            avg_point = np.average(points_3d_cam, 1)
+            test_scale = 20.0/np.linalg.norm(avg_point)*np.sign(avg_point[2])
+            test_scale = 0.1*np.sign(avg_point[2])
+            # print("Test scale = {0}".format(test_scale))
+            points_3d_cam *= test_scale
 
             # Prune points
             pruned_points_cam = self.prune_3d_points(points_3d_cam)
@@ -282,7 +300,7 @@ class Reconstruct3D:
             for x, y in px_points.astype(np.uint32):
                 if x in range(0, self.grid_size) and y in range(0, self.grid_size):
                     px_x = (self.grid_size - 1) - x
-                    px_y = y
+                    px_y = (self.grid_size - 1) - y
                     self.grid[px_x, px_y] = np.clip(self.grid[px_x, px_y] + self.grid_add_val, 0, 255)
 
             # Convert to color for viewing

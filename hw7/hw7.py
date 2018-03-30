@@ -20,21 +20,12 @@ dataset_param_file = '/home/skyler/school/ecen631/hw7/templeRing/camera_params.y
 dataset_img_file = lambda i: '/home/skyler/school/ecen631/hw7/templeRing/templeR000{0}.png'.format(i)
 
 def visual_odometry_hw():
-    using_webcam = False
+    using_webcam = True
     using_dataset = False
 
     # System setup
     if using_webcam:
-        cap = cv2.VideoCapture(0)
-        cv2.namedWindow("Webcam")
-        cv2.setMouseCallback("Webcam", onClick)
-        # Get region of interest
-        ret, frame_prev = cap.read()
-        visual_odom = VO(camera_param_file)
-        plotter = OdometryPlotter(plotting_freq=15)
-        uav_sim = UAVSim(forest_world)
-        uav_sim.init_teleop()
-        dt = 1.0/30.0
+        reconstructor = Reconstruct3D(camera_param_file)
     elif using_dataset:
         initial_img_index = 6
         final_img_index = 12
@@ -45,7 +36,9 @@ def visual_odometry_hw():
         uav_sim.velocity_teleop = True
         dt = uav_sim.dt
 
-        reconstructor = Reconstruct3D(dataset_param_file)
+        frame_cnt = 0
+        process_nth_frame = 1
+        reconstructor = Reconstruct3D()
 
 
 
@@ -54,18 +47,9 @@ def visual_odometry_hw():
             # Process webcam frame
             ret, frame = cap.read()
             if ret == True:
-                uav_sim.step_sim() # Just for plotter and to get time
                 cv2.imshow("Webcam", frame)
-                # cv2.imshow("Prev Frame", frame_prev)
                 body_vel = np.array([1., 0., 0.])
-                omega = np.array([0.0, 0.0, 0.1]) # Just so it estimates rotations
-                Rhat, phat = visual_odom.estimate_odometry(frame, body_vel, omega, dt)
-                euler = np.array(transforms3d.euler.mat2euler(Rhat, 'rxyz'))
-                # Make appropriate changes for weird Holodeck frames
-                xyz = np.copy(phat)
-                xyz[2] *= -1.0
-                euler[2] *= -1.0
-                plotter.update_sim_data(uav_sim, xyz, euler)
+                reconstructor.get_3d_points2(cam, body_vel=body_vel)
         elif using_dataset:
             # Cycle through images
             for i in range(initial_img_index, final_img_index+1):
@@ -82,8 +66,10 @@ def visual_odometry_hw():
             omega = uav_sim.get_gyro()
             R = uav_sim.get_orientation()
             T = uav_sim.get_position()
+            T[2] *= -1
             # reconstructor.get_3d_points2(cam, body_vel=body_vel, R_truth=R, T_truth=T)
             reconstructor.get_3d_points2(cam, body_vel=body_vel, R_truth=R, T_truth=T, use_truth=True)
+
             # reconstructor.get_3d_points2(cam, body_vel=body_vel)
 
         key = cv2.waitKey(1) & 0xFF
